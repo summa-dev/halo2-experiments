@@ -6,8 +6,8 @@ use halo2_proofs::{
     plonk::*,
 };
 
-// #[derive(Debug, Clone)]
-// struct ACell<F: Field>(AssignedCell<F, F>);
+#[derive(Debug, Clone)]
+struct ACell<F: Field>(AssignedCell<F, F>);
 
 #[derive(Debug, Clone)]
 struct InclusionCheckConfig { 
@@ -61,6 +61,9 @@ impl<F: Field> InclusionCheckChip<F> {
         username: Option<F>,
         balance: Option<F>
     ) -> Result<(), Error> {
+
+        // no need to turn on the selector gate for the generic row
+        
         Ok(())
     }
 
@@ -69,19 +72,43 @@ impl<F: Field> InclusionCheckChip<F> {
         mut layouter: impl Layouter<F>,
         username: Option<F>,
         balance: Option<F>
-    ) -> Result<(), Error> {
+    ) -> Result<(ACell<F>, ACell<F>), Error> { 
 
-        Ok(())
+        layouter.assign_region(|| "first row", |mut region| {
+
+            // We need to enable the selector in this region
+            self.config.selector.enable(&mut region, 0);
+
+            // Assign the value to username and balance and return assigned cell
+            let username_cell = region.assign_advice(
+                || "username", // we are assigning to column a
+                self.config.advice[0], 
+                0, 
+                || username.ok_or(Error::Synthesis),
+             ).map(ACell)?;
+
+             let balance_cell = region.assign_advice(
+                || "balance",
+                self.config.advice[1], 
+                0, 
+                || balance.ok_or(Error::Synthesis),
+             ).map(ACell)?;
+
+            Ok((username_cell, balance_cell))
+        })
+
     }
 
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<F>,
-        public_username_cell: &AssignedCell<F, F>,
-        public_balance_cell: &AssignedCell<F, F>,
-        row: usize
-    ) -> Result<(), Error> {
-        Ok(())
+        public_username_cell: &ACell<F>,
+        public_balance_cell: &ACell<F>,
+    ) {
+        // enforce equality between public_username_cell and instance column at row 0
+        layouter.constrain_instance(public_username_cell.0.cell(), self.config.instance, 0);
+        // enforce equality between balance_username_cell and instance column at row 1
+        layouter.constrain_instance(public_balance_cell.0.cell(), self.config.instance, 1);
     }
 }
 
@@ -136,10 +163,12 @@ mod tests {
                 // if row is equal to the inclusion index, assign the value using the assign_inclusion_check_row function
                 // else assign the value using the assign_generic_row function
                 if (_i as u8) == self.inclusion_index {
+                    // extract username and balances cell from here!
                     let result = chip.assign_inclusion_check_row(
                         layouter.namespace(|| "inclusion check row"),
                         self.usernames[_i],
                         self.balances[_i]);
+                    chip.expose_public(layouter.namespace(|| "output"), &username, &balance);
                 } else {
                     let result = chip.assign_generic_row(
                         layouter.namespace(|| "general row"),
@@ -147,9 +176,6 @@ mod tests {
                         self.balances[_i]);                
                 }
             }
-
-            // expose public function
-
             Ok(())
         }
 
@@ -218,3 +244,5 @@ mod tests {
 // - need to assert that lenght of usernames and balance vector is the same
 // - parametrize the length of the array
 // - do we need to use the result returned from the assignement?
+// - do I need struct ACell?
+// - what is the role of the selector in here?
