@@ -1,0 +1,12 @@
+[package]
+name = "halo2-experiments"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", rev = "fcdd5b9", version = "0.2.0" }
+halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", rev = "5b97d11", version = "0.3.1" }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[patch.'https://github.com/privacy-scaling-explorations/halo2curves']
+halo2curves = { git = 'https://github.com/privacy-scaling-explorations/halo2curves?rev=5b7d11' }
