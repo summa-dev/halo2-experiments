@@ -30,8 +30,9 @@ A: In Rust, when you define a struct with a type parameter, such as `InclusionCh
 
 | username  | balance  | usernameAcc | balanceAcc|selector  | instance  |
 | ----      | ---      |   ---     |       --- | -- | --| 
-| 12332 | 200 |  0 | 0 |  0  | 56677
-| 56677 | 100 |  56677| 100 | 1  | 100
+| - | - |  0 | 0 | -  | 56677
+| 12332 | 200 |  0 | 0 |  0  | 100
+| 56677 | 100 |  56677| 100 | 1  | -
 | 45563 | 700 |  56677| 100| 0  | -
 
 The constraint is enforced as a permutation check between the cell of the advise column and the cell of the instance column. In this example:

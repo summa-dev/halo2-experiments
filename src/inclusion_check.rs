@@ -51,8 +51,8 @@ impl<F: Field> InclusionCheckChip<F> {
     pub fn assign_generic_row(
         &self,
         mut layouter: impl Layouter<F>,
-        username: Value<Assigned<F>>,
-        balance: Value<Assigned<F>>
+        username: Value<F>,
+        balance: Value<F>
     ) -> Result<(), Error> {
         layouter.assign_region(|| "generic row", |mut region| {
 
@@ -79,9 +79,9 @@ impl<F: Field> InclusionCheckChip<F> {
     pub fn assign_inclusion_check_row(
         &self,
         mut layouter: impl Layouter<F>,
-        username: Value<Assigned<F>>,
-        balance: Value<Assigned<F>>
-    ) -> Result<(AssignedCell<Assigned<F>, F>, AssignedCell<Assigned<F>, F>), Error> { 
+        username: Value<F>,
+        balance: Value<F>
+    ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> { 
 
         layouter.assign_region(|| "inclusion row", |mut region| {
 
@@ -108,8 +108,8 @@ impl<F: Field> InclusionCheckChip<F> {
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<F>,
-        public_username_cell: &AssignedCell<Assigned<F>, F>,
-        public_balance_cell: &AssignedCell<Assigned<F>, F>,
+        public_username_cell: &AssignedCell<F, F>,
+        public_balance_cell: &AssignedCell<F, F>,
     )  -> Result<(), Error> {
         // enforce equality between public_username_cell and instance column at row 0
         layouter.constrain_instance(public_username_cell.cell(), self.config.instance, 0)?;
@@ -122,8 +122,11 @@ impl<F: Field> InclusionCheckChip<F> {
 
 mod tests {
     use halo2_proofs::{
-        dev::MockProver,
-        plonk::Circuit,
+        // circuit::floor_planner::V1,
+        dev::{FailureLocation, MockProver, VerifyFailure},
+        // plonk::{Any, Circuit},
+        plonk::{Any, Circuit},
+
     };
 
     use halo2curves::{
@@ -136,8 +139,8 @@ mod tests {
 
     // define circuit struct using array of usernames and balances 
     struct MyCircuit<F> {
-        pub usernames: [Value<Assigned<F>>; 10],
-        pub balances: [Value<Assigned<F>>; 10],
+        pub usernames: [Value<F>; 10],
+        pub balances: [Value<F>; 10],
         pub inclusion_index: u8
     }
 
@@ -191,17 +194,17 @@ mod tests {
     }
 
     #[test]
-    fn test_inclusion_check() {        
+    fn test_inclusion_check() {
         let k = 4;
 
         // initate usernames and balances array
-        let mut usernames: [Value<Assigned<Fp>>; 10] = [Value::default(); 10];
-        let mut balances: [Value<Assigned<Fp>>; 10] = [Value::default(); 10];
+        let mut usernames: [Value<Fp>; 10] = [Value::default(); 10];
+        let mut balances: [Value<Fp>; 10] = [Value::default(); 10];
 
         // add 10 values to the username array and balances array
         for i in 0..10 {
-            usernames[i] = Value::known(Fp::from(i as u64).into());
-            balances[i] = Value::known((Fp::from(i as u64) * Fp::from(2u64)).into());
+            usernames[i] = Value::known(Fp::from(i as u64));
+            balances[i] = Value::known(Fp::from(i as u64) * Fp::from(2));
         }
 
         // Table is 
@@ -231,21 +234,13 @@ mod tests {
         // Test 2 - Inclusion check on a existing entry but not for the corresponding inclusion_index
         let public_input_invalid = vec![Fp::from(8), Fp::from(16)];
         let prover = MockProver::run(k, &circuit, vec![public_input_invalid]).unwrap();
-
-        // This should fail as the inclusion check is not satisfied
-        match prover.verify(){
-            Ok(()) => {println!("Yes proved!")},
-            Err(_err) => {println!("Generated an error as expected!")}
-        }
+        assert!(prover.verify().is_err());
 
         // Test 3 - Inclusion check on a non-existing entry
         let public_input_invalid2 = vec![Fp::from(10), Fp::from(20)];
         let prover = MockProver::run(k, &circuit, vec![public_input_invalid2]).unwrap();
+        assert!(prover.verify().is_err());
 
-        // This should fail as the inclusion check is not satisfied
-        match prover.verify(){
-            Ok(()) => {println!("Yes proved!")},
-            Err(_err) => {println!("Generated an error as expected!")}
         }
 
 
@@ -275,4 +270,3 @@ mod tests {
             .render(3, &circuit, &root)
             .unwrap();
     }
-}
