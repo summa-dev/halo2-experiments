@@ -290,19 +290,22 @@ mod tests {
                     prev_username_acc_cell = user_accumulator_cell;
                     prev_balance_acc_cell = balance_accumulator_cell;
                 } else {
-                    chip.assign_generic_row(
+                    let (user_accumulator_cell, balance_accumulator_cell) = chip.assign_generic_row(
                         layouter.namespace(|| "generic row"),
                         self.usernames[_i],
                         self.balances[_i],
                         prev_username_acc_cell.value_field(),
                         prev_balance_acc_cell.value_field()
                     )?;
+                    // assign the accumulator
+                    prev_username_acc_cell = user_accumulator_cell;
+                    prev_balance_acc_cell = balance_accumulator_cell;
                 }
-
-                // expose the public values
-                chip.expose_public(layouter.namespace(|| "expose public"), &prev_username_acc_cell, &prev_balance_acc_cell)?;
-
             }
+
+            // expose the public values
+            chip.expose_public(layouter.namespace(|| "expose public"), &prev_username_acc_cell, &prev_balance_acc_cell)?;
+
             Ok(())
         }
 
