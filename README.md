@@ -32,6 +32,9 @@ A: In Rust, when you define a struct with a type parameter, such as `InclusionCh
 | ----      | ---      |   ---     |       --- | -- | --| 
 | 12332 | 200 |  0 | 0 |  0  | 56677
 | 56677 | 100 |  56677| 100 | 1  | 100
-| 45563 | 700 |  56677| 100| 0  | 
+| 45563 | 700 |  56677| 100| 0  | -
 
-The constraint is enforced as a permutation check between the cell of the advise column and the cell of the instance column.
+The constraint is enforced as a permutation check between the cell of the advise column and the cell of the instance column. In this example:
+
+- We need to use the selector to be turned on on the required line to enforce the custom gate
+- The permutation check is enforced between the last row of the `usernameAcc` and `balanceAcc` columns and the instance column values

@@ -56,9 +56,9 @@ impl<F: Field> InclusionCheckChip<F> {
     ) -> Result<(), Error> {
         layouter.assign_region(|| "generic row", |mut region| {
 
-            // Assign the value to username and balance 
+            // Assign the value to username and balance to the cell inside the region
             region.assign_advice(
-                || "username", // we are assigning to column a
+                || "username",
                 self.config.advice[0], 
                 0, 
                 || username,
@@ -122,9 +122,8 @@ impl<F: Field> InclusionCheckChip<F> {
 
 mod tests {
     use halo2_proofs::{
-        circuit::floor_planner::V1,
-        dev::{FailureLocation, MockProver, VerifyFailure},
-        plonk::{Any, Circuit},
+        dev::MockProver,
+        plonk::Circuit,
     };
 
     use halo2curves::{
@@ -192,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn test_inclusion_check() {
+    fn test_inclusion_check() {        
         let k = 4;
 
         // initate usernames and balances array
@@ -234,7 +233,6 @@ mod tests {
         let prover = MockProver::run(k, &circuit, vec![public_input_invalid]).unwrap();
 
         // This should fail as the inclusion check is not satisfied
-        // if there's an error print the error
         match prover.verify(){
             Ok(()) => {println!("Yes proved!")},
             Err(_err) => {println!("Generated an error as expected!")}
@@ -244,6 +242,7 @@ mod tests {
         let public_input_invalid2 = vec![Fp::from(10), Fp::from(20)];
         let prover = MockProver::run(k, &circuit, vec![public_input_invalid2]).unwrap();
 
+        // This should fail as the inclusion check is not satisfied
         match prover.verify(){
             Ok(()) => {println!("Yes proved!")},
             Err(_err) => {println!("Generated an error as expected!")}
