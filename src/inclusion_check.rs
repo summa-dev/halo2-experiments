@@ -9,7 +9,6 @@ use halo2_proofs::{
 #[derive(Debug, Clone)]
 struct InclusionCheckConfig { 
     pub advice: [ Column<Advice>; 2],
-    pub selector: Selector,
     pub instance: Column<Instance>,
 }
 
@@ -36,8 +35,6 @@ impl<F: Field> InclusionCheckChip<F> {
         // decompose array to fetch 2 advice column
         let col_username = advice[0];
         let col_balance = advice[1];
-        // create the selector
-        let selector = meta.selector();
 
         // enable equality for permutation check on the advice columns
         meta.enable_equality(col_username);
@@ -47,7 +44,6 @@ impl<F: Field> InclusionCheckChip<F> {
 
         InclusionCheckConfig{
             advice: [col_username, col_balance],
-            selector,
             instance
         }
     }
@@ -58,9 +54,7 @@ impl<F: Field> InclusionCheckChip<F> {
         username: Value<Assigned<F>>,
         balance: Value<Assigned<F>>
     ) -> Result<(), Error> {
-        layouter.assign_region(|| "first row", |mut region| {
-
-            // no need to turn on the selector gate for the generic row
+        layouter.assign_region(|| "generic row", |mut region| {
 
             // Assign the value to username and balance 
             region.assign_advice(
@@ -89,10 +83,7 @@ impl<F: Field> InclusionCheckChip<F> {
         balance: Value<Assigned<F>>
     ) -> Result<(AssignedCell<Assigned<F>, F>, AssignedCell<Assigned<F>, F>), Error> { 
 
-        layouter.assign_region(|| "first row", |mut region| {
-
-            // We need to enable the selector in this region
-            self.config.selector.enable(&mut region, 0)?;
+        layouter.assign_region(|| "inclusion row", |mut region| {
 
             // Assign the value to username and balance and return assigned cell
             let username_cell = region.assign_advice(
@@ -204,48 +195,85 @@ mod tests {
     fn test_inclusion_check() {
         let k = 4;
 
-        // initiate a circuit with 10 usernames and balances
+        // initate usernames and balances array
+        let mut usernames: [Value<Assigned<Fp>>; 10] = [Value::default(); 10];
+        let mut balances: [Value<Assigned<Fp>>; 10] = [Value::default(); 10];
+
+        // add 10 values to the username array and balances array
+        for i in 0..10 {
+            usernames[i] = Value::known(Fp::from(i as u64).into());
+            balances[i] = Value::known((Fp::from(i as u64) * Fp::from(2u64)).into());
+        }
+
+        // Table is 
+        // username | balance
+        // 0        | 0
+        // 1        | 2
+        // 2        | 4
+        // 3        | 6
+        // 4        | 8
+        // 5        | 10
+        // 6        | 12
+        // 7        | 14
+        // 8        | 16
+        // 9        | 18
+        
         let circuit = MyCircuit::<Fp> {
-            usernames: [Value::known(Fp::from(1_u64).into()); 10],
-            balances: [Value::known(Fp::from(1_u64).into()); 10],
-            inclusion_index: 0
+            usernames, 
+            balances,
+            inclusion_index: 7
         };
 
-        let public_input = vec![Fp::from(1), Fp::from(1)];
-
-        let prover = MockProver::run(k, &circuit, vec![public_input]).unwrap();
+        // Test 1 - Inclusion check on a existing entry for the corresponding inclusion_index
+        let public_input_valid = vec![Fp::from(7), Fp::from(14)];
+        let prover = MockProver::run(k, &circuit, vec![public_input_valid]).unwrap();
         prover.assert_satisfied();
+
+        // Test 2 - Inclusion check on a existing entry but not for the corresponding inclusion_index
+        let public_input_invalid = vec![Fp::from(8), Fp::from(16)];
+        let prover = MockProver::run(k, &circuit, vec![public_input_invalid]).unwrap();
+
+        // This should fail as the inclusion check is not satisfied
+        // if there's an error print the error
+        match prover.verify(){
+            Ok(()) => {println!("Yes proved!")},
+            Err(_err) => {println!("Generated an error as expected!")}
+        }
+
+        // Test 3 - Inclusion check on a non-existing entry
+        let public_input_invalid2 = vec![Fp::from(10), Fp::from(20)];
+        let prover = MockProver::run(k, &circuit, vec![public_input_invalid2]).unwrap();
+
+        match prover.verify(){
+            Ok(()) => {println!("Yes proved!")},
+            Err(_err) => {println!("Generated an error as expected!")}
+        }
+
 
     }
 
     #[cfg(feature = "dev-graph")]
     #[test]
-    fn print_range_check_1() {
+    fn print_inclusion_check() {
         use plotters::prelude::*;
 
-        let root = BitMapBackend::new("range-check-1-layout.png", (1024, 3096)).into_drawing_area();
+        let root = BitMapBackend::new("inclusion-check-1-layout.png", (1024, 3096)).into_drawing_area();
         root.fill(&WHITE).unwrap();
         let root = root
-            .titled("Range Check 1 Layout", ("sans-serif", 60))
+            .titled("Inclusion Check 1 Layout", ("sans-serif", 60))
             .unwrap();
 
-        let circuit = MyCircuit::<Fp, 8> {
-            value: Value::unknown(),
+        let mut usernames: [Value<Assigned<Fp>>; 10] = [Value::default(); 10];
+        let mut balances: [Value<Assigned<Fp>>; 10] = [Value::default(); 10];
+    
+        let circuit = MyCircuit::<Fp> {
+            usernames, 
+            balances,
+            inclusion_index: 2
         };
+
         halo2_proofs::dev::CircuitLayout::default()
             .render(3, &circuit, &root)
             .unwrap();
     }
 }
-
-// Questions: 
-
-// - should the selector be initiated inside the configure function or outside?
-// - does it make sense to define the circuit like this struct MyCircuit<F>?
-// - need to assert that lenght of usernames and balance vector is the same
-// - parametrize the length of the array
-// - do we need to use the result returned from the assignement?
-// - do I need struct ACell?
-// - what is the role of the selector in here?
-// - Write better tests
-// - Test case where the queried username and balance are in 2 different rows
