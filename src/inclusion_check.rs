@@ -6,6 +6,10 @@ use halo2_proofs::{
     plonk::*,
 };
 
+use halo2curves::{
+    pasta::*
+};
+
 #[derive(Debug, Clone)]
 struct InclusionCheckConfig { 
     pub advice: [ Column<Advice>; 2],
@@ -227,7 +231,7 @@ mod tests {
         };
 
         // Test 1 - Inclusion check on a existing entry for the corresponding inclusion_index
-        let public_input_valid = vec![Fp::from(7), Fp::from(14)];
+        let public_input_valid = vec![Fp::from(25), Fp::from(14)];
         let prover = MockProver::run(k, &circuit, vec![public_input_valid]).unwrap();
         prover.assert_satisfied();
 

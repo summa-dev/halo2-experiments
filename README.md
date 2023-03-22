@@ -28,7 +28,7 @@ A: In Rust, when you define a struct with a type parameter, such as `InclusionCh
 
 # Experiment 2 - Inclusion Check V2
 
-| username  | balance  | usernameAcc | balanceAcc|selector  | instance  |
+| username  | balance  | usernameAcc | balanceAcc| selector  | instance  |
 | ----      | ---      |   ---     |       --- | -- | --| 
 | - | - |  0 | 0 | -  | 56677
 | 12332 | 200 |  0 | 0 |  0  | 100
