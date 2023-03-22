@@ -1,13 +1,10 @@
-use std::{marker::PhantomData, usize};
+use std::{marker::PhantomData};
 
 use halo2_proofs::{
     arithmetic::Field,
     circuit::*,
     plonk::*,
 };
-
-#[derive(Debug, Clone)]
-struct ACell<F: Field>(AssignedCell<F, F>);
 
 #[derive(Debug, Clone)]
 struct InclusionCheckConfig { 
@@ -58,41 +55,59 @@ impl<F: Field> InclusionCheckChip<F> {
     pub fn assign_generic_row(
         &self,
         mut layouter: impl Layouter<F>,
-        username: Option<F>,
-        balance: Option<F>
+        username: Value<Assigned<F>>,
+        balance: Value<Assigned<F>>
     ) -> Result<(), Error> {
+        layouter.assign_region(|| "first row", |mut region| {
 
-        // no need to turn on the selector gate for the generic row
-        
-        Ok(())
-    }
+            // no need to turn on the selector gate for the generic row
+
+            // Assign the value to username and balance 
+            region.assign_advice(
+                || "username", // we are assigning to column a
+                self.config.advice[0], 
+                0, 
+                || username,
+             )?;
+
+             region.assign_advice(
+                || "balance",
+                self.config.advice[1], 
+                0, 
+                || balance,
+             )?;
+
+             Ok(())
+        })
+
+   }
 
     pub fn assign_inclusion_check_row(
         &self,
         mut layouter: impl Layouter<F>,
-        username: Option<F>,
-        balance: Option<F>
-    ) -> Result<(ACell<F>, ACell<F>), Error> { 
+        username: Value<Assigned<F>>,
+        balance: Value<Assigned<F>>
+    ) -> Result<(AssignedCell<Assigned<F>, F>, AssignedCell<Assigned<F>, F>), Error> { 
 
         layouter.assign_region(|| "first row", |mut region| {
 
             // We need to enable the selector in this region
-            self.config.selector.enable(&mut region, 0);
+            self.config.selector.enable(&mut region, 0)?;
 
             // Assign the value to username and balance and return assigned cell
             let username_cell = region.assign_advice(
                 || "username", // we are assigning to column a
                 self.config.advice[0], 
                 0, 
-                || username.ok_or(Error::Synthesis),
-             ).map(ACell)?;
+                || username,
+             )?;
 
              let balance_cell = region.assign_advice(
                 || "balance",
                 self.config.advice[1], 
                 0, 
-                || balance.ok_or(Error::Synthesis),
-             ).map(ACell)?;
+                || balance,
+             )?;
 
             Ok((username_cell, balance_cell))
         })
@@ -102,13 +117,15 @@ impl<F: Field> InclusionCheckChip<F> {
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<F>,
-        public_username_cell: &ACell<F>,
-        public_balance_cell: &ACell<F>,
-    ) {
+        public_username_cell: &AssignedCell<Assigned<F>, F>,
+        public_balance_cell: &AssignedCell<Assigned<F>, F>,
+    )  -> Result<(), Error> {
         // enforce equality between public_username_cell and instance column at row 0
-        layouter.constrain_instance(public_username_cell.0.cell(), self.config.instance, 0);
+        layouter.constrain_instance(public_username_cell.cell(), self.config.instance, 0)?;
         // enforce equality between balance_username_cell and instance column at row 1
-        layouter.constrain_instance(public_balance_cell.0.cell(), self.config.instance, 1);
+        layouter.constrain_instance(public_balance_cell.cell(), self.config.instance, 1)?;
+
+        Ok(())
     }
 }
 
@@ -128,9 +145,9 @@ mod tests {
     #[derive(Default)] 
 
     // define circuit struct using array of usernames and balances 
-    struct MyCircuit<F: Field> {
-        pub usernames: [Option<F>; 10],
-        pub balances: [Option<F>; 10],
+    struct MyCircuit<F> {
+        pub usernames: [Value<Assigned<F>>; 10],
+        pub balances: [Value<Assigned<F>>; 10],
         pub inclusion_index: u8
     }
 
@@ -164,16 +181,18 @@ mod tests {
                 // else assign the value using the assign_generic_row function
                 if (_i as u8) == self.inclusion_index {
                     // extract username and balances cell from here!
-                    let result = chip.assign_inclusion_check_row(
-                        layouter.namespace(|| "inclusion check row"),
+                    let (username_cell, balance_cell) = chip.assign_inclusion_check_row(
+                        layouter.namespace(|| "inclusion row"),
                         self.usernames[_i],
-                        self.balances[_i]);
-                    chip.expose_public(layouter.namespace(|| "output"), &username, &balance);
+                        self.balances[_i])?;
+                    
+                    // expose the public values
+                    chip.expose_public(layouter.namespace(|| "expose public"), &username_cell, &balance_cell)?;
                 } else {
-                    let result = chip.assign_generic_row(
-                        layouter.namespace(|| "general row"),
+                    chip.assign_generic_row(
+                        layouter.namespace(|| "generic row"),
                         self.usernames[_i],
-                        self.balances[_i]);                
+                        self.balances[_i])?;                
                 }
             }
             Ok(())
@@ -182,40 +201,22 @@ mod tests {
     }
 
     #[test]
-    // fn test_range_check_1() {
-    //     let k = 4;
-    //     const RANGE: usize = 8; // 3-bit value
+    fn test_inclusion_check() {
+        let k = 4;
 
-    //     // Successful cases i=0,1,2,3,4,5,6,7
-    //     for i in 0..RANGE {
-    //         let circuit = MyCircuit::<Fp, RANGE> {
-    //             value: Value::known(Fp::from(i as u64).into()),
-    //         };
+        // initiate a circuit with 10 usernames and balances
+        let circuit = MyCircuit::<Fp> {
+            usernames: [Value::known(Fp::from(1_u64).into()); 10],
+            balances: [Value::known(Fp::from(1_u64).into()); 10],
+            inclusion_index: 0
+        };
 
-    //         let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-    //         prover.assert_satisfied();
-    //     }
+        let public_input = vec![Fp::from(1), Fp::from(1)];
 
-    //     // Out-of-range `value = 8`
-    //     {
-    //         let circuit = MyCircuit::<Fp, RANGE> {
-    //             value: Value::known(Fp::from(RANGE as u64).into()),
-    //         };
-    //         let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-    //         // prover.assert_satisfied(); // this should fail!
-    //         assert_eq!(
-    //             prover.verify(),
-    //             Err(vec![VerifyFailure::ConstraintNotSatisfied {
-    //                 constraint: ((0, "range check").into(), 0, "range check").into(),
-    //                 location: FailureLocation::InRegion {
-    //                     region: (0, "Assign value").into(),
-    //                     offset: 0
-    //                 },
-    //                 cell_values: vec![(((Any::Advice, 0).into(), 0).into(), "0x8".to_string())]
-    //             }])
-    //         );
-    //     }
-    // }
+        let prover = MockProver::run(k, &circuit, vec![public_input]).unwrap();
+        prover.assert_satisfied();
+
+    }
 
     #[cfg(feature = "dev-graph")]
     #[test]
@@ -246,3 +247,5 @@ mod tests {
 // - do we need to use the result returned from the assignement?
 // - do I need struct ACell?
 // - what is the role of the selector in here?
+// - Write better tests
+// - Test case where the queried username and balance are in 2 different rows
