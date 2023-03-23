@@ -3,7 +3,7 @@ use std::{marker::PhantomData};
 use halo2_proofs::{
     arithmetic::Field,
     circuit::*,
-    plonk::*,
+    plonk::{Advice, Column, ConstraintSystem, Error, Instance, Selector},
     poly::Rotation,
 };
 
@@ -56,16 +56,16 @@ impl<F: Field> InclusionCheckV2Chip<F> {
 
             let s = meta.query_selector(selector);
             let username = meta.query_advice(username_column, Rotation::cur());
-            let cur_username_accumulator = meta.query_advice(username_accumulator_column, Rotation::cur());
+            let username_accumulator = meta.query_advice(username_accumulator_column, Rotation::cur());
             let prev_username_accumulator = meta.query_advice(username_accumulator_column, Rotation::prev());
 
             let balance = meta.query_advice(balance_column, Rotation::cur());
-            let cur_balance_accumulator = meta.query_advice(balance_accumulator_column, Rotation::cur());
+            let balance_accumulator = meta.query_advice(balance_accumulator_column, Rotation::cur());
             let prev_balance_accumulator = meta.query_advice(balance_accumulator_column, Rotation::prev());
 
             vec![
-                s.clone() * (username + cur_username_accumulator - prev_username_accumulator),
-                s.clone() * (balance + cur_balance_accumulator - prev_balance_accumulator)
+                s.clone() * (username + prev_username_accumulator - username_accumulator),
+                s.clone() * (balance + prev_balance_accumulator - balance_accumulator)
            ]
         });
 
@@ -76,145 +76,116 @@ impl<F: Field> InclusionCheckV2Chip<F> {
         }
     }
 
-    // Initiate the accumulator. This is the first row of the circuit
-    pub fn init_accumulator(
+    // Assign rows for instance column passing the entry of the users
+    pub fn assign_rows(
         &self,
         mut layouter: impl Layouter<F>,
-        zero_val: Value<F>
-    ) -> Result<(AssignedCell<Assigned<F>, F>, AssignedCell<Assigned<F>, F>), Error> {
-        
-        layouter.assign_region(|| "table", |mut region| {
+        usernames: [Value<F>; 10],
+        balances: [Value<F>; 10],
+        zero_val: Value<F>,
+        inclusion_index: u8,
+    ) -> Result<(AssignedCell<F, F>,AssignedCell<F, F>), Error> {
 
-            // Assign a 0 value to username_accumulator_column at row 0
-            let username_acc_cell = region.assign_advice(
+        layouter.assign_region(|| "user and balance table", |mut region| {
+
+            // for the first row, assign the zero value to the accumulator
+            let mut user_acc_cell = region.assign_advice(
                 || "username accumulator init",
                 self.config.advice[2], 
                 0,
-                || zero_val.into_field()
+                || zero_val
             )?;
 
-            // Assign a 0 value to balance_accumulator_column at row 0 
-            let balance_acc_cell = region.assign_advice(
+            let mut balance_acc_cell = region.assign_advice(
                 || "balance accumulator init",
                 self.config.advice[3], 
                 0,
-                || zero_val.into_field()
+                || zero_val
             )?;
 
-            Ok((username_acc_cell, balance_acc_cell))
-        })
-    }
+            let mut username_acc_value = zero_val;
+            let mut balance_acc_value = zero_val;
 
-    // Assign a generic row inside the instance column.
-    // Selector for the custom gate is off
-    pub fn assign_generic_row(
-        &self,
-        mut layouter: impl Layouter<F>,
-        username: Value<F>,
-        balance: Value<F>,
-        last_user_accumulator_value: Value<Assigned<F>>,
-        last_balance_accumulator_value: Value<Assigned<F>>,
-    ) -> Result<(AssignedCell<Assigned<F>, F>, AssignedCell<Assigned<F>, F>), Error> {
+            // loop over the username and balance arrays and assign the values to the table
+            for _i in 0..usernames.len() {
 
-        layouter.assign_region(|| "generic row", |mut region| {
+                if (_i as u8) == inclusion_index {
 
-            // Assign the value to username and balance to the cells inside the region
-            region.assign_advice(
-                || "username generic",
-                self.config.advice[0], 
-                0, 
-                || username,
-                )?;
-            
+                    self.config.selector.enable(&mut region, _i + 1)?;
 
-            region.assign_advice(
-            || "balance generic",
-            self.config.advice[1], 
-            0, 
-            || balance,
-            )?;
+                    region.assign_advice(
+                        || "username",
+                        self.config.advice[0], 
+                        _i + 1,
+                        || usernames[_i]
+                    )?;
 
-            // Assign a 0 value to username_accumulator_column at row 0
-            let username_acc_cell = region.assign_advice(
-                || "username accumulator generic",
-                self.config.advice[2], 
-                0,
-                || last_user_accumulator_value
-            )?;
+                    region.assign_advice(
+                        || "balance",
+                        self.config.advice[1], 
+                        _i + 1,
+                        || balances[_i]
+                    )?;
 
-            // Assign a 0 value to balance_accumulator_column at row 0 
-            let balance_acc_cell = region.assign_advice(
-                || "balance accumulator generic",
-                self.config.advice[3], 
-                0,
-                || last_balance_accumulator_value
-            )?;
+                    user_acc_cell = region.assign_advice(
+                        || "username accumulator",
+                        self.config.advice[2], 
+                        _i + 1,
+                        || usernames[_i]
+                    )?;
 
-            Ok((username_acc_cell, balance_acc_cell))
+                    balance_acc_cell = region.assign_advice(
+                        || "balance accumulator",
+                        self.config.advice[3], 
+                        _i + 1,
+                        || balances[_i]
+                    )?;
 
-        })
-    }
+                    
+                    username_acc_value = usernames[_i];
+                    balance_acc_value = balances[_i];
+                }
 
-    pub fn assign_inclusion_check_row(
-        &self,
-        mut layouter: impl Layouter<F>,
-        username: Value<F>,
-        balance: Value<F>,
-        last_user_accumulator_value: Value<Assigned<F>>,
-        last_balance_accumulator_value: Value<Assigned<F>>,
-    ) -> Result<(AssignedCell<Assigned<F>, F>, AssignedCell<Assigned<F>, F>), Error> { 
+                else {
 
-        layouter.assign_region(|| "inclusion row", |mut region| {
+                    region.assign_advice(
+                        || "username",
+                        self.config.advice[0], 
+                        _i + 1,
+                        || usernames[_i]
+                    )?;
 
-            self.config.selector.enable(&mut region, 0)?;
+                    region.assign_advice(
+                        || "balance",
+                        self.config.advice[1], 
+                        _i + 1,
+                        || balances[_i]
+                    )?;
 
-            // Assign the value to username and balance and return assigned cell
-            region.assign_advice(
-                || "username", // we are assigning to column a
-                self.config.advice[0], 
-                0, 
-                || username,
-             )?;
- 
-            region.assign_advice(
-                || "balance",
-                self.config.advice[1], 
-                0, 
-                || balance,
-             )?;
+                    user_acc_cell = region.assign_advice(
+                        || "username accumulator",
+                        self.config.advice[2], 
+                        _i + 1,
+                        || username_acc_value
+                    )?;
 
-            // Assign a 0 value to username_accumulator_column at row 0
-            let username_acc_cell = region.assign_advice(
-                || "username accumulator inclusion check row",
-                self.config.advice[2], 
-                0,
-                || last_user_accumulator_value
-            )?;
+                    balance_acc_cell = region.assign_advice(
+                        || "balance accumulator",
+                        self.config.advice[3], 
+                        _i + 1,
+                        || balance_acc_value
+                    )?;
 
-            // Assign a 0 value to balance_accumulator_column at row 0 
-            let balance_acc_cell = region.assign_advice(
-                || "balance accumulator inclusion check row",
-                self.config.advice[3], 
-                0,
-                || last_balance_accumulator_value
-            )?;
+                }
+            }
+            Ok((user_acc_cell, balance_acc_cell))
+    })
+}
 
-            Ok((username_acc_cell, balance_acc_cell))
-        })
-    }
 
-    pub fn expose_public(
-        &self,
-        mut layouter: impl Layouter<F>,
-        last_user_accumulator_cell: &AssignedCell<Assigned<F>, F>,
-        last_balance_accumulator_cell: &AssignedCell<Assigned<F>, F>,
-    )  -> Result<(), Error> {
-        // enforce equality between public_username_cell and instance column at row 0
-        layouter.constrain_instance(last_user_accumulator_cell.cell(), self.config.instance, 0)?;
-        // enforce equality between balance_username_cell and instance column at row 1
-        layouter.constrain_instance(last_balance_accumulator_cell.cell(), self.config.instance, 1)?;
-        Ok(())
-    }
+pub fn expose_public(&self, mut layouter: impl Layouter<F>, cell: &AssignedCell<F, F>, row: usize) -> Result<(), Error> {
+    layouter.constrain_instance(cell.cell(), self.config.instance, row)
+}
 
 }
 
@@ -269,42 +240,20 @@ mod tests {
             // We create a new instance of chip using the config passed as input
             let chip = InclusionCheckV2Chip::<F>::construct(config);
 
-            // Initiate the accumulator
-            let (mut prev_username_acc_cell, mut prev_balance_acc_cell) = chip.init_accumulator(layouter.namespace(|| "init accumulator"), self.zero_val)?;
+            // println!("accumulator init");
+            // // Initiate the accumulator
+            // chip.init_accumulator(layouter.namespace(|| "init accumulator"), self.zero_val)?;
 
-            // loop over the usernames array and assign the rows
-            for _i in 0..self.usernames.len() {
-                // if row is equal to the inclusion index, assign the value using the assign_inclusion_check_row function
-                // else assign the value using the assign_generic_row function
-                if (_i as u8) == self.inclusion_index {
-                    // extract username and balances cell from here!
-                    let (user_accumulator_cell, balance_accumulator_cell)= chip.assign_inclusion_check_row(
-                        layouter.namespace(|| "inclusion row"),
-                        self.usernames[_i],
-                        self.balances[_i],
-                        prev_username_acc_cell.value_field(),
-                        prev_balance_acc_cell.value_field()
-                    )?;
+            let (user_acc_last_row, balance_acc_last_row) = chip.assign_rows(
+            layouter.namespace(|| "init table"),
+            self.usernames,
+            self.balances,
+            self.zero_val,
+            self.inclusion_index
+            )?;
 
-                    // assign the accumulator
-                    prev_username_acc_cell = user_accumulator_cell;
-                    prev_balance_acc_cell = balance_accumulator_cell;
-                } else {
-                    let (user_accumulator_cell, balance_accumulator_cell) = chip.assign_generic_row(
-                        layouter.namespace(|| "generic row"),
-                        self.usernames[_i],
-                        self.balances[_i],
-                        prev_username_acc_cell.value_field(),
-                        prev_balance_acc_cell.value_field()
-                    )?;
-                    // assign the accumulator
-                    prev_username_acc_cell = user_accumulator_cell;
-                    prev_balance_acc_cell = balance_accumulator_cell;
-                }
-            }
-
-            // expose the public values
-            chip.expose_public(layouter.namespace(|| "expose public"), &prev_username_acc_cell, &prev_balance_acc_cell)?;
+            chip.expose_public(layouter.namespace(|| "expose public"), &user_acc_last_row, 0)?;
+            chip.expose_public(layouter.namespace(|| "expose public"), &balance_acc_last_row, 1)?;
 
             Ok(())
         }
@@ -348,17 +297,17 @@ mod tests {
         // Test 1 - Inclusion check on a existing entry for the corresponding inclusion_index
         let public_input_valid = vec![Fp::from(7), Fp::from(14)];
         let prover = MockProver::run(k, &circuit, vec![public_input_valid]).unwrap();
-        prover.assert_satisfied();
+        prover.assert_satisfied();        
 
-        // // Test 2 - Inclusion check on a existing entry but not for the corresponding inclusion_index
-        // let public_input_invalid = vec![Fp::from(8), Fp::from(16)];
-        // let prover = MockProver::run(k, &circuit, vec![public_input_invalid]).unwrap();
-        // assert!(prover.verify().is_err());
+        // Test 2 - Inclusion check on a existing entry but not for the corresponding inclusion_index
+        let public_input_invalid = vec![Fp::from(8), Fp::from(16)];
+        let prover = MockProver::run(k, &circuit, vec![public_input_invalid]).unwrap();
+        assert!(prover.verify().is_err());
 
-        // // Test 3 - Inclusion check on a non-existing entry
-        // let public_input_invalid2 = vec![Fp::from(10), Fp::from(20)];
-        // let prover = MockProver::run(k, &circuit, vec![public_input_invalid2]).unwrap();
-        // assert!(prover.verify().is_err());
+        // Test 3 - Inclusion check on a non-existing entry
+        let public_input_invalid2 = vec![Fp::from(10), Fp::from(20)];
+        let prover = MockProver::run(k, &circuit, vec![public_input_invalid2]).unwrap();
+        assert!(prover.verify().is_err());
 
         }
 
@@ -389,10 +338,3 @@ mod tests {
             .render(3, &circuit, &root)
             .unwrap();
     }
-
-
-
-// To test: 
-
-// - Check what happen if I disable the enabled equality on the instance column
-// - Consistency with names

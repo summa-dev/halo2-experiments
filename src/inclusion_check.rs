@@ -61,19 +61,23 @@ impl<F: Field> InclusionCheckChip<F> {
         layouter.assign_region(|| "generic row", |mut region| {
 
             // Assign the value to username and balance to the cell inside the region
-            region.assign_advice(
+            let username_cell = region.assign_advice(
                 || "username",
                 self.config.advice[0], 
                 0, 
                 || username,
              )?;
 
-             region.assign_advice(
+            let balance_cell = region.assign_advice(
                 || "balance",
                 self.config.advice[1], 
                 0, 
                 || balance,
              )?;
+
+             println!("{:?}", username_cell);
+             println!("{:?}", balance_cell);
+ 
 
              Ok(())
         })
@@ -104,6 +108,8 @@ impl<F: Field> InclusionCheckChip<F> {
                 || balance,
              )?;
 
+            println!("{:?}", username_cell);
+            println!("{:?}", balance_cell);
             Ok((username_cell, balance_cell))
         })
 
@@ -231,7 +237,7 @@ mod tests {
         };
 
         // Test 1 - Inclusion check on a existing entry for the corresponding inclusion_index
-        let public_input_valid = vec![Fp::from(25), Fp::from(14)];
+        let public_input_valid = vec![Fp::from(7), Fp::from(14)];
         let prover = MockProver::run(k, &circuit, vec![public_input_valid]).unwrap();
         prover.assert_satisfied();
 
