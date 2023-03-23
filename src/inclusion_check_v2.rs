@@ -244,7 +244,7 @@ mod tests {
             // // Initiate the accumulator
             // chip.init_accumulator(layouter.namespace(|| "init accumulator"), self.zero_val)?;
 
-            let (user_acc_last_row, balance_acc_last_row) = chip.assign_rows(
+            let (user_acc_last_row_cell, balance_acc_last_row_cell) = chip.assign_rows(
             layouter.namespace(|| "init table"),
             self.usernames,
             self.balances,
@@ -252,8 +252,8 @@ mod tests {
             self.inclusion_index
             )?;
 
-            chip.expose_public(layouter.namespace(|| "expose public"), &user_acc_last_row, 0)?;
-            chip.expose_public(layouter.namespace(|| "expose public"), &balance_acc_last_row, 1)?;
+            chip.expose_public(layouter.namespace(|| "expose public"), &user_acc_last_row_cell, 0)?;
+            chip.expose_public(layouter.namespace(|| "expose public"), &balance_acc_last_row_cell, 1)?;
 
             Ok(())
         }
