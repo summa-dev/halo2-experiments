@@ -97,40 +97,46 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
         }
     }
 
+    pub fn assing_leaf(
+        &self,
+        mut layouter: impl Layouter<F>,
+        leaf: Value<F>
+    ) -> Result<AssignedCell<F, F>, Error> {
+        let node_cell = layouter.assign_region(
+            || "assign leaf",
+            |mut region| {
+                region.assign_advice(|| "leaf", self.config.advice[0], 0, || leaf)
+            },
+        )?;
+
+        Ok(node_cell)
+    }
+
     pub fn assign_hashing_region(   
         &self,
         mut layouter: impl Layouter<F>,
-        leaf: Value<F>,
+        node_cell: &AssignedCell<F, F>,
         path_element: Value<F>,
-        index: Value<F>,
-        prev_digest: Option<&AssignedCell<F, F>>,
-        tree_level: usize,
+        index: Value<F>
     ) -> Result<AssignedCell<F, F>, Error> {
 
         layouter.assign_region(
-            || format!("layer {}", tree_level),
+            || "assign hashing level",
             |mut region| {
 
             // Enabled Selectors at offset 0: Bool, Swap
             self.config.bool_selector.enable(&mut region, 0)?;
             self.config.swap_selector.enable(&mut region, 0)?;
-
-            let to_hash;
-
-            if tree_level == 0 {
-                // Row 0: | Leaf | Path | Bit |
-                region.assign_advice(|| "leaf", self.config.advice[0], 0, || leaf)?;
-                to_hash = leaf;
-            } else {
-                // Row 0: | prev_digest | Path | Bit |
-                prev_digest.unwrap().copy_advice(
-                    || "prev digest",
-                    &mut region,
-                    self.config.advice[0],
-                    0,
-                )?;
-                to_hash = prev_digest.unwrap().value().map(|x| x.to_owned());
-            }
+            
+            // Row 0: | node_cell | Path | Bit |
+            // at tree_level 0, node_cell is the leaf
+            // at next level, node_cell is the digest of the previous level
+            node_cell.copy_advice(
+                || "prev digest",
+                &mut region,
+                self.config.advice[0],
+                0,
+            )?;
 
             region.assign_advice(|| "path", self.config.advice[1], 0, || path_element)?;
             region.assign_advice(|| "bit", self.config.advice[2], 0, || index)?;
@@ -138,11 +144,11 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
             // Row 1: | InputLeft | InputRight | Digest |
             // Enabled Selectors: Hash
 
-            let mut input_l = to_hash;
+            let mut input_l = node_cell.value().map(|x| x.to_owned());
             let mut input_r = path_element;
             index.map(|index| {
                 if index != F::zero() {
-                    (input_l, input_r) = (path_element, to_hash);
+                    (input_l, input_r) = (path_element, node_cell.value().map(|x| x.to_owned()));
                 }
             });
 

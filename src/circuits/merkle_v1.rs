@@ -44,29 +44,30 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
         // We create a new instance of chip using the config passed as input
         let chip = MerkleTreeV1Chip::<F>::construct(config);
 
+        let mut leaf_cell = chip.assing_leaf(layouter.namespace(|| "load leaf"), self.leaf)?;
+
+        // Verify that the leaf matches the public input
+        chip.expose_public(layouter.namespace(|| "leaf"), &leaf_cell, 0)?;
+
         // apply it for level 0 of the merkle tree
         let mut digest = chip.assign_hashing_region(
             layouter.namespace(|| "level 0"),
-            self.leaf,
+            &leaf_cell,
             self.path_elements[0],
-            self.path_indices[0],
-            None,
-            0,
+            self.path_indices[0]
         )?;
 
         // apply it for the remaining levels of the merkle tree
         for i in 1..self.path_elements.len() {
             digest = chip.assign_hashing_region(
                 layouter.namespace(|| "next level"),
-                self.leaf,
+                &digest,
                 self.path_elements[i],
-                self.path_indices[i],
-                Some(&digest),
-                i as usize,
+                self.path_indices[i]
             )?;
         }
 
-        chip.expose_public(layouter.namespace(|| "root"), &digest, 0)?;
+        chip.expose_public(layouter.namespace(|| "root"), &digest, 1)?;
 
         Ok(())
     }
@@ -84,23 +85,29 @@ mod tests {
 
     #[test]
     fn test_merkle_tree_1() {
-        let leaf = Value::known(Fp::from(99));
+        let leaf = Fp::from(99);
         let path_elements = vec![Value::known(Fp::from(1)), Value::known(Fp::from(1))];
         let path_indices = vec![Value::known(Fp::from(0)), Value::known(Fp::from(0))];
         let digest = Fp::from(101);
 
         let circuit = MerkleTreeV1Circuit {
-            leaf: leaf,
+            leaf: Value::known(leaf),
             path_elements: path_elements,
             path_indices: path_indices,
         };
 
         // succesful case
-        let public_input = vec![digest];
+        let public_input = vec![leaf, digest];
         let prover = MockProver::run(4, &circuit, vec![public_input.clone()]).unwrap();
         prover.assert_satisfied();
 
-        let public_input = vec![Fp::from(102)];
+        // not successful case
+        let public_input = vec![leaf, Fp::from(102)];
+        let prover = MockProver::run(4, &circuit, vec![public_input.clone()]).unwrap();
+        assert!(prover.verify().is_err());
+
+        // not successful case
+        let public_input = vec![Fp::from(100), digest];
         let prover = MockProver::run(4, &circuit, vec![public_input.clone()]).unwrap();
         assert!(prover.verify().is_err());
     }

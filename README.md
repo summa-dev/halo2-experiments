@@ -131,7 +131,9 @@ This Merkle Tree specification works exactly the same as the previous one. The o
 
 TO DO: 
 - [ ] Replace usage of constants in Inclusion Check.
-- [ ] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
+- [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
+- [x] Add 2 public inputs to merkle_v1
+
 
 
 
