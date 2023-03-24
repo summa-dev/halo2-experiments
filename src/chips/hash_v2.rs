@@ -8,21 +8,21 @@ use halo2_proofs::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Hash1Config {
-    pub advice: [Column<Advice>; 2],
+pub struct Hash2Config {
+    pub advice: [Column<Advice>; 3],
     pub instance: Column<Instance>,
     pub selector: Selector,
 }
 
 #[derive(Debug, Clone)]
-pub struct Hash1Chip<F: FieldExt> {
-    config: Hash1Config,
+pub struct Hash2Chip<F: FieldExt> {
+    config: Hash2Config,
     _marker: PhantomData<F>,
 }
 
-impl<F: FieldExt> Hash1Chip<F> {
+impl<F: FieldExt> Hash2Chip<F> {
 
-    pub fn construct(config:Hash1Config) -> Self {
+    pub fn construct(config:Hash2Config) -> Self {
         Self {
             config,
             _marker: PhantomData
@@ -31,32 +31,33 @@ impl<F: FieldExt> Hash1Chip<F> {
 
     pub fn configure(
         meta: &mut ConstraintSystem<F>,
-        advice: [Column<Advice>; 2],
+        advice: [Column<Advice>; 3],
         selector: Selector,
         instance: Column<Instance>,
-    ) -> Hash1Config {
+    ) -> Hash2Config {
 
         let col_a = advice[0];
         let col_b = advice[1];
+        let col_c = advice[2];
         let hash_selector = selector;
 
         // Enable equality on the advice and instance column to enable permutation check
-        meta.enable_equality(col_b);
+        meta.enable_equality(col_c);
         meta.enable_equality(instance);
 
         // enforce dummy hash function by creating a custom gate
         meta.create_gate("hash constraint", |meta| {
-            // enforce 2 * a = b, namely 2 * a - b = 0
-
+            // enforce a + b = c, namely a + b - c = 0
             let s = meta.query_selector(hash_selector);
             let a = meta.query_advice(col_a, Rotation::cur());
             let b = meta.query_advice(col_b, Rotation::cur());
-            
-            vec![s * (Expression::Constant(F::from(2)) * a - b)]
+            let c = meta.query_advice(col_c, Rotation::cur());
+       
+            vec![s * (a + b - c)]
         });
 
-        Hash1Config {
-            advice: [col_a, col_b],
+        Hash2Config {
+            advice: [col_a, col_b, col_c],
             instance,
             selector: hash_selector,
         }
@@ -65,7 +66,8 @@ impl<F: FieldExt> Hash1Chip<F> {
     pub fn assign_advice_row(   
         &self,
         mut layouter: impl Layouter<F>,
-        a: Value<F>
+        a: Value<F>,
+        b: Value<F>,
     ) -> Result<AssignedCell<F, F>, Error> {
 
         layouter.assign_region(|| "adivce row", |mut region| {
@@ -81,14 +83,21 @@ impl<F: FieldExt> Hash1Chip<F> {
                 || a,
              )?;
 
-            let b_cell = region.assign_advice(
+             region.assign_advice(
                 || "b",
                 self.config.advice[1], 
                 0, 
-                || a * Value::known(F::from(2)),
+                || b,
              )?;
 
-             Ok(b_cell)
+            let c_cell = region.assign_advice(
+                || "c",
+                self.config.advice[2], 
+                0, 
+                || a + b,
+             )?;
+
+             Ok(c_cell)
         })
 
     }
@@ -97,10 +106,10 @@ impl<F: FieldExt> Hash1Chip<F> {
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<F>,
-        b_cell: AssignedCell<F, F>,
+        c_cell: AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
-        layouter.constrain_instance(b_cell.cell(), self.config.instance, row)
+        layouter.constrain_instance(c_cell.cell(), self.config.instance, row)
     }
 
 }

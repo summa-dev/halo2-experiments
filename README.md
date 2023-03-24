@@ -42,16 +42,42 @@ The constraint is enforced as a permutation check between the cell of the advise
 
 `cargo test -- --nocapture test_inclusion_check_2`
 
-# Experiment 3 - Hash V1
+# Experiment 3 - Dummy Hash V1
 
 Experiment of a dummy hash from [`halo2-merkle-tree`](https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/chips/hash_1.rs).
 
 The dummy hash function is `2 * a = b`. 
 
+`a` can be viewed as the input of the hash function. `b` is the output of the hash function. 
+The zk snark verifies that the prover knows `a` such that the output of the hash function is equal to `b`.
+
 | a  | b  |hash selector | instance
 | -- | -  |  ---         | ---
 | 2  | 4  | 1            | 4
 
-`a` and `b` here are the advice column, namely the private inputs of circuit. The zk snark verifies that the prover knows `b` namely the result of the hash function equals to the public input passed to the circuit in the instance column.
+`a` and `b` here are the advice column, namely the private inputs of circuit.
+
+The instance column contains the public input of the circuit namely the result of the hash function that the zk snark should verify.
 
 `cargo test -- --nocapture test_hash_1`
+
+# Experiment 4 - Dummy Hash V2
+
+Experiment of a dummy hash from [`halo2-merkle-tree`](https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/chips/hash_2.rs).
+
+The dummy hash function is `a + b = c`. 
+
+`a` and `b` can be viewed as the input of the hash function. `c` is the output of the hash function. 
+The zk snark verifies that the prover knows `a` and `b` such that the output of the hash function is equal to `c`.
+
+| a  | b  | c  |hash selector | instance
+| -- | -  |--- | ---          | ---
+| 2  | 7  | 9  | 1            | 9
+
+`a` and `b` and `c` here are the advice column, namely the private inputs of circuit.
+
+The instance column contains the public input of the circuit namely the result of the hash function that the zk snark should verify.
+
+`cargo test -- --nocapture test_hash_2`
+
+
