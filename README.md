@@ -41,3 +41,17 @@ The constraint is enforced as a permutation check between the cell of the advise
 - The permutation check is enforced between the last row of the `usernameAcc` and `balanceAcc` columns and the instance column values
 
 `cargo test -- --nocapture test_inclusion_check_2`
+
+# Experiment 3 - Hash V1
+
+Experiment of a dummy hash from [`halo2-merkle-tree`](https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/chips/hash_1.rs).
+
+The dummy hash function is `2 * a = b`. 
+
+| a  | b  |hash selector | instance
+| -- | -  |  ---         | ---
+| 2  | 4  | 1            | 4
+
+`a` and `b` here are the advice column, namely the private inputs of circuit. The zk snark verifies that the prover knows `b` namely the result of the hash function equals to the public input passed to the circuit in the instance column.
+
+`cargo test -- --nocapture test_hash_1`
