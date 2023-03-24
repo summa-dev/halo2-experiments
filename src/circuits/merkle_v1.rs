@@ -95,8 +95,13 @@ mod tests {
             path_indices: path_indices,
         };
 
+        // succesful case
         let public_input = vec![digest];
         let prover = MockProver::run(4, &circuit, vec![public_input.clone()]).unwrap();
         prover.assert_satisfied();
+
+        let public_input = vec![Fp::from(102)];
+        let prover = MockProver::run(4, &circuit, vec![public_input.clone()]).unwrap();
+        assert!(prover.verify().is_err());
     }
 }
