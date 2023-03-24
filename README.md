@@ -80,4 +80,43 @@ The instance column contains the public input of the circuit namely the result o
 
 `cargo test -- --nocapture test_hash_2`
 
+# Experiment 5 - Merkle Tree V1
+
+Experiment of a merkle tree from [`halo2-merkle-tree`](https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/chips/hash_2.rs).
+
+The dummy hash function for the merkle tree is `a + b = c`. 
+
+The circuit is made of 3 advice columns `a`, `b` and `c`, 3 selector columns `bool_selector`, `swap_selector` and `hash_selector` and 1 instance column `instance`.
+
+The input passed to instantiate a circuit are the `leaf` the we are trying to prove the inclusion of in the tree, `path_elements` which is an array of the siblings of the leaf and `path_indices` which is an array of bits indicating the relative position of the node that we are performing the hashing on to its sibilings (`path_elements`). For example a path index of `1` means that the sibling is on the left of its node, while a path index of `0` means that the sibling is on the right of its node. Therefore the hashing needs to be performed in a specific order. Note that considering our dummy hash, the order of the hashing is not important as the result is the same. But this will be important when implementing a real hash function.
+
+The assignment of the values to the columns is performed using a region that covers 2 rows:
+
+| a           | b                | c       | bool_selector | swap_selector | hash_selector
+| --          | -                | --      |    --         | ---           | ---
+| leaf        | path_element     | index   |     1         | 1             | 0
+| input left  | input right      | digest  |     0         | 0             | 1
+
+At row 0, we assign the leaf, the element (from `path_element`) and the bit (from `path_indices`). At this row we turn on `bool_selector` and `swap_selector`. 
+
+At row 1, we assign the input left, the input right and the digest. At this row we turn on `hash_selector`.
+
+The circuit contains 3 custom gates: 
+
+- If the `bool_selector` is on, checks that the value inside the c column is either 0 or 1
+- If the `swap_selector` is on, checks that the swap on the next row is performed correctly according to the `bit`
+- If the `hash_selector` is on, checks that the digest is equal to the (dummy) hash between input left and input right
+
+Furthermore, the circuit contains 1 permutation check:
+
+- Verifies that the last `digest` of the circuit is equal to the `root` of the tree which is passed as (public) value to the instance column
+
+`cargo test -- --nocapture test_merkle_tree_1`
+
+TO DO: 
+- [ ] Extend it to make use of the dummy hash chip
+- [ ] Do we need enable copy_advice on column b?
+- [ ] Improve struct on the Alloc cell
+
+
 

@@ -97,7 +97,7 @@ impl<F: FieldExt> Hash1Chip<F> {
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<F>,
-        b_cell: AssignedCell<F, F>,
+        b_cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(b_cell.cell(), self.config.instance, row)

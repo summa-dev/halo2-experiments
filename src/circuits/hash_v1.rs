@@ -38,7 +38,7 @@ impl<F: FieldExt> Circuit<F> for Hash1Circuit<F> {
     ) -> Result<(), Error> {
         let chip = Hash1Chip::construct(config);
         let b = chip.assign_advice_row(layouter.namespace(|| "load row"), self.a)?;
-        chip.expose_public(layouter.namespace(|| "hash output check"), b, 0)?;
+        chip.expose_public(layouter.namespace(|| "hash output check"), &b, 0)?;
         Ok(())
     }
 }
@@ -56,6 +56,10 @@ mod tests {
         let circuit = Hash1Circuit { a };
         let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
+
+        let public_inputs = vec![Fp::from(8)];
+        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        assert!(prover.verify().is_err());
     }
 }
 
