@@ -1,6 +1,8 @@
 # halo2-experiments
 For practice to using halo2
 
+This library makes use of the [PSE Fork of Halo2](https://github.com/privacy-scaling-explorations/halo2) and the related [Halo2 Curves](https://github.com/privacy-scaling-explorations/halo2curves)
+
 # Experiment 1 - Inclusion Check
 
 The inclusion check circuit is a circuit built using 2 advise columns, 1 selector column and 1 instance column. The advise columns contain the list of usernames and balances. The instance column contains the username and balance of the user that I am generating the proof for. Let's call it `pubUsername` and `pubBalance` This should be public and the snark should verify that there's a row in the advise column where `pubUsername` and `pubBalance` entries match. At that row the selector should be turned on.

@@ -46,9 +46,12 @@ impl<F: FieldExt> Circuit<F> for Hash2Circuit<F> {
 }
 
 mod tests {
-    use halo2curves::{pasta::Fp};
     use super::Hash2Circuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver};
+    use halo2_proofs::{
+        circuit::Value,
+        dev::MockProver,
+        halo2curves::pasta::Fp
+    };
 
     #[test]
     fn test_hash_2() {

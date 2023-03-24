@@ -76,8 +76,11 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
 
 mod tests {
     use super::MerkleTreeV1Circuit;
-    use halo2curves::{pasta::Fp};
-    use halo2_proofs::{circuit::Value, dev::MockProver};
+    use halo2_proofs::{
+        circuit::Value,
+        dev::MockProver,
+        halo2curves::pasta::Fp
+};
 
     #[test]
     fn test_merkle_tree_1() {

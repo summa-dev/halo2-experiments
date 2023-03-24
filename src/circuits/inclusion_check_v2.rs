@@ -63,10 +63,13 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
 
 mod tests {
 
-    use halo2curves::{pasta::Fp};
     use super::MyCircuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver};
-
+    use halo2_proofs::{
+        circuit::Value,
+        dev::MockProver,
+        halo2curves::pasta::Fp
+    };
+    
     #[test]
     fn test_inclusion_check_2() {
         let k = 5;
