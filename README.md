@@ -15,7 +15,7 @@ The constraint is enforced as a permutation check between the cell of the advise
 
 In this example, we don't really need a selector as we are not enforcing any custom gate.
 
-`cargo test -- --nocapture test_inclusion_check`
+`cargo test -- --nocapture test_inclusion_check_1`
 `cargo test --all-features -- --nocapture print_inclusion_check` 
 
 Q: What is PhantomData?
@@ -39,3 +39,5 @@ The constraint is enforced as a permutation check between the cell of the advise
 
 - We need to use the selector to be turned on on the required line to enforce the custom gate
 - The permutation check is enforced between the last row of the `usernameAcc` and `balanceAcc` columns and the instance column values
+
+`cargo test -- --nocapture test_inclusion_check_2`

@@ -1,2 +1,2 @@
-mod inclusion_check;
-mod inclusion_check_v2;
+pub mod chips;
+pub mod circuits;
