@@ -161,14 +161,14 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
 
     }
 
-    // Enforce permutation check between b cell and instance column
+    // Enforce permutation check between input cell and instance column
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<F>,
-        b_cell: &AssignedCell<F, F>,
+        cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
-        layouter.constrain_instance(b_cell.cell(), self.config.instance, row)
+        layouter.constrain_instance(cell.cell(), self.config.instance, row)
     }
 
 }

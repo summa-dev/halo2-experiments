@@ -1,7 +1,17 @@
 # halo2-experiments
+
 For practice to using halo2
 
-This library makes use of the [PSE Fork of Halo2](https://github.com/privacy-scaling-explorations/halo2) and the related [Halo2 Curves](https://github.com/privacy-scaling-explorations/halo2curves)
+This library makes use of the [PSE Fork of Halo2](https://github.com/privacy-scaling-explorations/halo2) and the related [Halo2 Curves](https://github.com/privacy-scaling-explorations/halo2curves).
+
+List of available experiments: 
+
+- [Experiment 1 - Inclusion Check](#experiment-1---inclusion-check)
+- [Experiment 2 - Inclusion Check V2](#experiment-2---inclusion-check-v2)
+- [Experiment 3 - Dummy Hash V1](#experiment-3---dummy-hash-v1)
+- [Experiment 4 - Dummy Hash V2](#experiment-4---dummy-hash-v2)
+- [Experiment 5 - Merkle Tree V1](#experiment-5---merkle-tree-v1)
+
 
 # Experiment 1 - Inclusion Check
 
@@ -109,16 +119,20 @@ The circuit contains 3 custom gates:
 - If the `swap_selector` is on, checks that the swap on the next row is performed correctly according to the `bit`
 - If the `hash_selector` is on, checks that the digest is equal to the (dummy) hash between input left and input right
 
-Furthermore, the circuit contains 1 permutation check:
+Furthermore, the circuit contains 2 permutation check:
 
 - Verifies that the last `digest` of the circuit is equal to the `root` of the tree which is passed as (public) value to the instance column
 
 `cargo test -- --nocapture test_merkle_tree_1`
 
+# Experiment 6 - Merkle Tree V2
+
+This Merkle Tree specification works exactly the same as the previous one. The only difference is that it makes use of the `Hash2Chip` and `Hash2Config` created in experiment 4 rather than rewriting the logic of the hash inside the Circuit, as it was done in experiment 5.
+
 TO DO: 
-- [ ] Extend it to make use of the dummy hash chip
-- [ ] Do we need enable copy_advice on column b?
-- [ ] Improve struct on the Alloc cell
+- [ ] Replace usage of constants in Inclusion Check.
+- [ ] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
+
 
 
 

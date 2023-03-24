@@ -39,7 +39,7 @@ impl<F: FieldExt> Circuit<F> for Hash2Circuit<F> {
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = Hash2Chip::construct(config);
-        let c = chip.assign_advice_row(layouter.namespace(|| "load row"), self.a, self.b)?;
+        let c = chip.hash(layouter.namespace(|| "load row"), self.a, self.b)?;
         chip.expose_public(layouter.namespace(|| "hash output check"), &c, 0)?;
         Ok(())
     }

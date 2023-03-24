@@ -63,14 +63,14 @@ impl<F: FieldExt> Hash2Chip<F> {
         }
     }
 
-    pub fn assign_advice_row(   
+    pub fn hash(   
         &self,
         mut layouter: impl Layouter<F>,
         a: Value<F>,
         b: Value<F>,
     ) -> Result<AssignedCell<F, F>, Error> {
 
-        layouter.assign_region(|| "adivce row", |mut region| {
+        layouter.assign_region(|| "hash row", |mut region| {
 
             // enable hash selector 
             self.config.selector.enable(&mut region, 0)?;
