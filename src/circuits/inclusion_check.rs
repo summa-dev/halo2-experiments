@@ -3,7 +3,7 @@ use super::super::chips::inclusion_check::{
 };
 
 use halo2_proofs::{
-    arithmetic::Field,
+    arithmetic::FieldExt,
     circuit::*,
     plonk::*,
 };
@@ -17,7 +17,7 @@ struct MyCircuit<F> {
     pub inclusion_index: u8
 }
 
-impl<F: Field> Circuit<F> for MyCircuit<F> {
+impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
     type Config = InclusionCheckConfig;
     type FloorPlanner = SimpleFloorPlanner;
 

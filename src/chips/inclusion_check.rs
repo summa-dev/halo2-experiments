@@ -1,7 +1,7 @@
 use std::{marker::PhantomData};
 
 use halo2_proofs::{
-    arithmetic::Field,
+    arithmetic::FieldExt,
     circuit::*,
     plonk::*,
 };
@@ -12,12 +12,12 @@ pub struct InclusionCheckConfig {
     pub instance: Column<Instance>,
 }
 
-pub struct InclusionCheckChip<F: Field>  {
+pub struct InclusionCheckChip<F: FieldExt>  {
     config: InclusionCheckConfig,
     _marker: PhantomData<F>,
 }
 
-impl<F: Field> InclusionCheckChip<F> {
+impl<F: FieldExt> InclusionCheckChip<F> {
 
     pub fn construct(config: InclusionCheckConfig) -> Self {
         Self {
