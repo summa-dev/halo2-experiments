@@ -2,7 +2,7 @@
 
 For practice to using halo2
 
-This library makes use of the [PSE Fork of Halo2](https://github.com/privacy-scaling-explorations/halo2) and the related [Halo2 Curves](https://github.com/privacy-scaling-explorations/halo2curves).
+This library makes use of the [PSE Fork of Halo2](https://github.com/privacy-scaling-explorations/halo2).
 
 List of available experiments: 
 
