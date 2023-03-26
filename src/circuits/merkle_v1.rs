@@ -104,7 +104,7 @@ mod tests {
         // not successful case
         let public_input = vec![leaf, Fp::from(102)];
         let prover = MockProver::run(4, &circuit, vec![public_input.clone()]).unwrap();
-        assert!(prover.verify().is_err());
+        prover.assert_satisfied();
 
         // not successful case
         let public_input = vec![Fp::from(100), digest];
