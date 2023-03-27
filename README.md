@@ -177,6 +177,10 @@ A subset of this configuration can be also shared across any child chip to be us
 
 Later on we can leverage the `hash2_chip` with its gates and its assignment function inside our merkle tree chip. 
 
+# Experiment 7 - Poseidon Hash
+
+Create a chip that performs a Poseidon hash leveraging the gadget provided by the Halo2 Library.
+
 
 
 
