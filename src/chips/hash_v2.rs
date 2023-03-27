@@ -56,11 +56,24 @@ impl<F: FieldExt> Hash2Chip<F> {
         }
     }
 
+    pub fn load_private(
+        &self,
+        mut layouter: impl Layouter<F>,
+        input: Value<F>,
+    ) -> Result<AssignedCell<F, F>, Error> {
+        layouter.assign_region(
+            || "load private",
+            |mut region| {
+                region.assign_advice(|| "private input", self.config.advice[0], 0, || input)
+            },
+        )
+    }
+
     pub fn hash(
         &self,
         mut layouter: impl Layouter<F>,
-        a: Value<F>,
-        b: Value<F>,
+        a_cell: AssignedCell<F, F>,
+        b_cell: AssignedCell<F, F>,
     ) -> Result<AssignedCell<F, F>, Error> {
         layouter.assign_region(
             || "hash row",
@@ -68,12 +81,13 @@ impl<F: FieldExt> Hash2Chip<F> {
                 // enable hash selector
                 self.config.selector.enable(&mut region, 0)?;
 
-                // Assign the value to username and balance to the cell inside the region
-                region.assign_advice(|| "a", self.config.advice[0], 0, || a)?;
+                a_cell.copy_advice(|| "input_a", &mut region, self.config.advice[0], 0)?;
+                b_cell.copy_advice(|| "input_b", &mut region, self.config.advice[1], 0)?;
 
-                region.assign_advice(|| "b", self.config.advice[1], 0, || b)?;
-
-                let c_cell = region.assign_advice(|| "c", self.config.advice[2], 0, || a + b)?;
+                let c_cell = region.assign_advice(|| "c", self.config.advice[2], 0, || {
+                    a_cell.value().map(|x| x.to_owned())
+                        + b_cell.value().map(|x| x.to_owned())
+                })?;
 
                 Ok(c_cell)
             },

@@ -45,6 +45,9 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
         // Enable equality on the advice column a. This is need to carry digest from one level to the other
         // and perform copy_advice
         meta.enable_equality(col_a);
+        
+        // Enable equality on the advice column b. Need for permutation check when calling hash function 
+        meta.enable_equality(col_b);
 
         // Enforces that c is either a 0 or 1 when the bool selector is enabled
         // s * c * (1 - c) = 0
@@ -119,10 +122,11 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
                     (l, r) = if x == F::zero() { (l, r) } else { (r, l) };
                 });
 
-                region.assign_advice(|| "left", self.config.advice[0], 1, || l)?;
-                region.assign_advice(|| "right", self.config.advice[1], 1, || r)?;
+                // We need to perform the assignment in order to perform the swap check
+                let left = region.assign_advice(|| "left", self.config.advice[0], 1, || l)?;
+                let right = region.assign_advice(|| "right", self.config.advice[1], 1, || r)?;
 
-                Ok((l, r))
+                Ok((left, right))
             },
         )?;
 
