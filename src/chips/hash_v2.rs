@@ -38,6 +38,10 @@ impl<F: FieldExt> Hash2Chip<F> {
         meta.enable_equality(col_c);
         meta.enable_equality(instance);
 
+        meta.enable_equality(col_a);
+        meta.enable_equality(col_b);
+
+
         // enforce dummy hash function by creating a custom gate
         meta.create_gate("hash constraint", |meta| {
             // enforce a + b = c, namely a + b - c = 0
