@@ -15,8 +15,8 @@ struct PoseidonCircuit<
     const RATE: usize,
     const L: usize,
 > {
-    message: [Value<F>; L],
-    output: Value<F>,
+    hash_input: [Value<F>; L],
+    digest: Value<F>,
     _spec: PhantomData<S>,
 }
 
@@ -28,18 +28,31 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
 
     fn without_witnesses(&self) -> Self {
         Self {
-            message: (0..L)
+            hash_input: (0..L)
                 .map(|i| Value::unknown())
                 .collect::<Vec<Value<F>>>()
                 .try_into()
                 .unwrap(),
-            output: Value::unknown(),
+            digest: Value::unknown(),
             _spec: PhantomData,
         }
     }
 
     fn configure(meta: &mut ConstraintSystem<F>) -> PoseidonConfig<F, WIDTH, RATE, L> {
-        PoseidonChip::<F, S, WIDTH, RATE, L>::configure(meta)
+        let state = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
+        let partial_sbox = meta.advice_column();
+        let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
+        let rc_b = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
+        let instance = meta.instance_column();
+
+        PoseidonChip::<F, S, WIDTH, RATE, L>::configure(
+            meta,
+            state,
+            partial_sbox,
+            rc_a,
+            rc_b,
+            instance,
+        )
     }
 
     fn synthesize(
@@ -48,10 +61,10 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let poseidon_chip = PoseidonChip::<F, S, WIDTH, RATE, L>::construct(config);
-        let message_cells = poseidon_chip
-            .load_private_inputs(layouter.namespace(|| "load private inputs"), self.message)?;
-        let result = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), &message_cells)?;
-        poseidon_chip.expose_public(layouter.namespace(|| "expose result"), &result, 0)?;
+        let hash_input_cells = poseidon_chip
+            .load_private_inputs(layouter.namespace(|| "load private inputs"), self.hash_input)?;
+        let digest = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), &hash_input_cells)?;
+        poseidon_chip.expose_public(layouter.namespace(|| "expose result"), &digest, 0)?;
         Ok(())
     }
 }
@@ -68,16 +81,23 @@ mod tests {
     #[test]
     fn test_poseidon() {
         let input = 99u64;
-        let message = [Fp::from(input), Fp::from(input)];
-        let output =
-            poseidon::Hash::<_, P128Pow5T3, ConstantLength<2>, 3, 2>::init().hash(message);
+        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input)];
 
-        let circuit = PoseidonCircuit::<Fp, P128Pow5T3, 3, 2, 2> {
-            message: message.map(|x| Value::known(x)),
-            output: Value::known(output),
+        println!("input: {:?}", Fp::from(input));
+
+        // compute the hash outside of the circuit
+        let digest =
+            poseidon::Hash::<_, P128Pow5T3, ConstantLength<3>, 3, 2>::init().hash(hash_input);
+        
+        // print output
+        println!("output: {:?}", digest);
+
+        let circuit = PoseidonCircuit::<Fp, P128Pow5T3, 3, 2, 3> {
+            hash_input: hash_input.map(|x| Value::known(x)),
+            digest: Value::known(digest),
             _spec: PhantomData,
         };
-        let public_input = vec![output];
+        let public_input = vec![digest];
         let prover = MockProver::run(10, &circuit, vec![public_input.clone()]).unwrap();
         prover.assert_satisfied();
     }

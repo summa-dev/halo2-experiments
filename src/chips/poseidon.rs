@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 // This means they are values that are known at compile time and can be used to specialize the implementation of the struct.
 // The actual chip provided by halo2_gadgets is added to the parent Chip.
 pub struct PoseidonConfig<F: FieldExt, const WIDTH: usize, const RATE: usize, const L: usize> {
-    inputs: Vec<Column<Advice>>,
+    hash_inputs: Vec<Column<Advice>>,
     instance: Column<Instance>,
     pow5_config: Pow5Config<F, WIDTH, RATE>,
 }
@@ -45,14 +45,15 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
     }
 
     // Configuration of the PoseidonChip
-    // ?? Modify it = pass the columns to the configure function! ??
-    // ?? Do I need to impose copy constraint between inputs and state vectors?
-    pub fn configure(meta: &mut ConstraintSystem<F>) -> PoseidonConfig<F, WIDTH, RATE, L> {
-        let state = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
-        let partial_sbox = meta.advice_column();
-        let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
-        let rc_b = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
-        let instance = meta.instance_column();
+    pub fn configure(
+        meta: &mut ConstraintSystem<F>,
+        state: Vec<Column<Advice>>,
+        partial_sbox: Column<Advice>,
+        rc_a: Vec<Column<Fixed>>,
+        rc_b: Vec<Column<Fixed>>,
+        instance: Column<Instance>
+    ) -> PoseidonConfig<F, WIDTH, RATE, L> {
+        
         for i in 0..WIDTH {
             meta.enable_equality(state[i]);
         }
@@ -62,13 +63,13 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
         let pow5_config = Pow5Chip::configure::<S>(
             meta,
             state.clone().try_into().unwrap(),
-            partial_sbox.try_into().unwrap(),
+            partial_sbox,
             rc_a.try_into().unwrap(),
             rc_b.try_into().unwrap(),
         );
 
         PoseidonConfig {
-            inputs: state.clone().try_into().unwrap(),
+            hash_inputs: state.clone().try_into().unwrap(),
             instance,
             pow5_config,
         }
@@ -90,7 +91,7 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
                     .map(|(i, x)| {
                         region.assign_advice(
                             || "private input",
-                            self.config.inputs[i],
+                            self.config.hash_inputs[i],
                             0,
                             || x.to_owned(),
                         )
@@ -107,23 +108,23 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
     pub fn hash(
         &self,
         mut layouter: impl Layouter<F>,
-        words: &[AssignedCell<F, F>; L],
+        hash_input_cells: &[AssignedCell<F, F>; L],
     ) -> Result<AssignedCell<F, F>, Error> {
 
         let pow5_chip = Pow5Chip::construct(self.config.pow5_config.clone());
         
         // Assign values to word_cells by copying it from the cells passed as input
-        let word_cells = layouter.assign_region(
+        let copied_cells = layouter.assign_region(
             || "load words",
             |mut region| -> Result<[AssignedCell<F, F>; L], Error> {
-                let result = words
+                let result = hash_input_cells
                     .iter()
                     .enumerate()
                     .map(|(i, word)| {
                         word.copy_advice(
                             || format!("word {}", i),
                             &mut region,
-                            self.config.inputs[i],
+                            self.config.hash_inputs[i],
                             0,
                         )
                     })
@@ -137,7 +138,7 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
             pow5_chip,
             layouter.namespace(|| "hasher"),
         )?;
-        hasher.hash(layouter.namespace(|| "hash"), word_cells)
+        hasher.hash(layouter.namespace(|| "hash"), copied_cells)
     }
 
     pub fn expose_public(

@@ -180,10 +180,7 @@ Later on we can leverage the `hash2_chip` with its gates and its assignment func
 # Experiment 7 - Poseidon Hash
 
 Create a chip that performs a Poseidon hash leveraging the gadget provided by the Halo2 Library.
-
-
-
-
+Based on this implementation => https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/circuits/poseidon.rs
 
 
 TO DO: 
