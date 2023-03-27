@@ -11,11 +11,12 @@ List of available experiments:
 - [Experiment 3 - Dummy Hash V1](#experiment-3---dummy-hash-v1)
 - [Experiment 4 - Dummy Hash V2](#experiment-4---dummy-hash-v2)
 - [Experiment 5 - Merkle Tree V1](#experiment-5---merkle-tree-v1)
+- [Experiment 6 - Merkle Tree V2](#experiment-6---merkle-tree-v2)
 
 
 # Experiment 1 - Inclusion Check
 
-The inclusion check circuit is a circuit built using 2 advise columns, 1 selector column and 1 instance column. The advise columns contain the list of usernames and balances. The instance column contains the username and balance of the user that I am generating the proof for. Let's call it `pubUsername` and `pubBalance` This should be public and the snark should verify that there's a row in the advise column where `pubUsername` and `pubBalance` entries match. At that row the selector should be turned on.
+The inclusion check circuit is a circuit built using 2 advice columns, 1 selector column and 1 instance column. The advice columns contain the list of usernames and balances. The instance column contains the username and balance of the user that I am generating the proof for. Let's call it `pubUsername` and `pubBalance` This should be public and the snark should verify that there's a row in the advise column where `pubUsername` and `pubBalance` entries match. At that row the selector should be turned on.
 
 | username  | balance  |instance  |
 | ----      | ---      |        --- |
@@ -23,7 +24,7 @@ The inclusion check circuit is a circuit built using 2 advise columns, 1 selecto
 | 56677 | 100 | 100
 | 45563 | 700 | 
 
-The constraint is enforced as a permutation check between the cell of the advise column and the cell of the instance column.
+The constraint is enforced as a permutation check between the cell of the advice column and the cell of the instance column.
 
 In this example, we don't really need a selector as we are not enforcing any custom gate.
 
@@ -128,6 +129,58 @@ Furthermore, the circuit contains 2 permutation check:
 # Experiment 6 - Merkle Tree V2
 
 This Merkle Tree specification works exactly the same as the previous one. The only difference is that it makes use of the `Hash2Chip` and `Hash2Config` created in experiment 4 rather than rewriting the logic of the hash inside the Circuit, as it was done in experiment 5.
+
+It's worth nothing how the `Hash2Chip` and `Hash2Config` are used in this circuit. As mentioned in the [Halo2 book - Composing Chips](https://zcash.github.io/halo2/concepts/chips.html#composing-chips) these should be composed as in a tree. 
+
+The top-level chip is this case is the `MerkleTreeV2Chip`. Its configuration should contain all the advice columns, instance columns, fixed columns and selector columns that are used in the circuit.
+
+```rust
+    pub fn configure(
+        meta: &mut ConstraintSystem<F>,
+        advice: [Column<Advice>; 3],
+        bool_selector: Selector,
+        swap_selector: Selector,
+        hash_selector: Selector,
+        instance: Column<Instance>,
+    ) -> MerkleTreeV2Config {
+        ...
+    } 
+``` 
+
+A subset of this configuration can be also shared across any child chip to be used inside the circuit. For example, the `Hash2Chip` is composed inside the `MerkleTreeV2Chip` and it uses the same advice columns and one selector. 
+
+```rust
+
+    pub fn configure(
+        meta: &mut ConstraintSystem<F>,
+        advice: [Column<Advice>; 3],
+        bool_selector: Selector,
+        swap_selector: Selector,
+        hash_selector: Selector,
+        instance: Column<Instance>,
+    ) -> MerkleTreeV2Config {
+        ...
+        let hash2_config = Hash2Chip::configure(meta, advice, hash_selector, instance);
+
+        MerkleTreeV2Config {
+            advice: [col_a, col_b, col_c],
+            bool_selector,
+            swap_selector,
+            hash_selector,
+            instance,
+            hash2_config
+        }
+        ...
+    } 
+
+``` 
+
+Later on we can leverage the `hash2_chip` with its gates and its assignment function inside our merkle tree chip. 
+
+
+
+
+
 
 TO DO: 
 - [ ] Replace usage of constants in Inclusion Check.
