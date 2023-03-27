@@ -7,37 +7,37 @@ is already implemented in halo2_gadgets, there is no wrapper chip that makes it 
 // Furthermore it adds an instance column to store the public expected output of the hash
 
 use halo2_gadgets::poseidon::{primitives::*, Hash, Pow5Chip, Pow5Config};
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, plonk::*, arithmetic::FieldExt};
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
 
-// ?? Is this true for the L ??
-// WIDTH, RATE and L are const generics for the struct, which represent the width, rate, and number of rounds of the Poseidon hash function, respectively.
+// WIDTH, RATE and L are const generics for the struct, which represent the width, rate, and number of inputs for the Poseidon hash function, respectively.
 // This means they are values that are known at compile time and can be used to specialize the implementation of the struct.
 // The actual chip provided by halo2_gadgets is added to the parent Chip.
-pub struct PoseidonConfig<const WIDTH: usize, const RATE: usize, const L: usize> {
+pub struct PoseidonConfig<F: FieldExt, const WIDTH: usize, const RATE: usize, const L: usize> {
     inputs: Vec<Column<Advice>>,
     instance: Column<Instance>,
-    pow5_config: Pow5Config<Fp, WIDTH, RATE>,
+    pow5_config: Pow5Config<F, WIDTH, RATE>,
 }
 
 #[derive(Debug, Clone)]
 
 pub struct PoseidonChip<
-    S: Spec<Fp, WIDTH, RATE>,
+    F: FieldExt,
+    S: Spec<F, WIDTH, RATE>,
     const WIDTH: usize,
     const RATE: usize,
     const L: usize,
 > {
-    config: PoseidonConfig<WIDTH, RATE, L>,
+    config: PoseidonConfig<F, WIDTH, RATE, L>,
     _marker: PhantomData<S>,
 }
 
-impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize>
-    PoseidonChip<S, WIDTH, RATE, L>
+impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize>
+    PoseidonChip<F, S, WIDTH, RATE, L>
 {
-    pub fn construct(config: PoseidonConfig<WIDTH, RATE, L>) -> Self {
+    pub fn construct(config: PoseidonConfig<F, WIDTH, RATE, L>) -> Self {
         Self {
             config,
             _marker: PhantomData,
@@ -47,7 +47,7 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
     // Configuration of the PoseidonChip
     // ?? Modify it = pass the columns to the configure function! ??
     // ?? Do I need to impose copy constraint between inputs and state vectors?
-    pub fn configure(meta: &mut ConstraintSystem<Fp>) -> PoseidonConfig<WIDTH, RATE, L> {
+    pub fn configure(meta: &mut ConstraintSystem<F>) -> PoseidonConfig<F, WIDTH, RATE, L> {
         let state = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
         let partial_sbox = meta.advice_column();
         let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
@@ -70,7 +70,7 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         PoseidonConfig {
             inputs: state.clone().try_into().unwrap(),
             instance,
-            pow5_config: pow5_config,
+            pow5_config,
         }
     }
 
@@ -78,12 +78,12 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
     // Assign the inputs to the advice colums
     pub fn load_private_inputs(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        inputs: [Value<Fp>; L],
-    ) -> Result<[AssignedCell<Fp, Fp>; L], Error> {
+        mut layouter: impl Layouter<F>,
+        inputs: [Value<F>; L],
+    ) -> Result<[AssignedCell<F, F>; L], Error> {
         layouter.assign_region(
             || "load private inputs",
-            |mut region| -> Result<[AssignedCell<Fp, Fp>; L], Error> {
+            |mut region| -> Result<[AssignedCell<F, F>; L], Error> {
                 let result = inputs
                     .iter()
                     .enumerate()
@@ -95,7 +95,7 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
                             || x.to_owned(),
                         )
                     })
-                    .collect::<Result<Vec<AssignedCell<Fp, Fp>>, Error>>();
+                    .collect::<Result<Vec<AssignedCell<F, F>>, Error>>();
                 Ok(result?.try_into().unwrap())
             },
         )
@@ -106,16 +106,16 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
     // It uses the pow5_chip to compute the hash
     pub fn hash(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        words: &[AssignedCell<Fp, Fp>; L],
-    ) -> Result<AssignedCell<Fp, Fp>, Error> {
+        mut layouter: impl Layouter<F>,
+        words: &[AssignedCell<F, F>; L],
+    ) -> Result<AssignedCell<F, F>, Error> {
 
         let pow5_chip = Pow5Chip::construct(self.config.pow5_config.clone());
         
         // Assign values to word_cells by copying it from the cells passed as input
         let word_cells = layouter.assign_region(
             || "load words",
-            |mut region| -> Result<[AssignedCell<Fp, Fp>; L], Error> {
+            |mut region| -> Result<[AssignedCell<F, F>; L], Error> {
                 let result = words
                     .iter()
                     .enumerate()
@@ -127,7 +127,7 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
                             0,
                         )
                     })
-                    .collect::<Result<Vec<AssignedCell<Fp, Fp>>, Error>>();
+                    .collect::<Result<Vec<AssignedCell<F, F>>, Error>>();
                 Ok(result?.try_into().unwrap())
             },
         )?;
@@ -142,8 +142,8 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
 
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        cell: &AssignedCell<Fp, Fp>,
+        mut layouter: impl Layouter<F>,
+        cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(cell.cell(), self.config.instance, row)

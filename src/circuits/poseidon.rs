@@ -5,31 +5,32 @@ is already implemented in halo2_gadgets, there is no wrapper chip that makes it 
 
 use super::super::chips::poseidon::{PoseidonChip, PoseidonConfig};
 use halo2_gadgets::poseidon::{primitives::*};
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, plonk::*, arithmetic::FieldExt};
 use std::marker::PhantomData;
 
 struct PoseidonCircuit<
-    S: Spec<Fp, WIDTH, RATE>,
+    F: FieldExt,
+    S: Spec<F, WIDTH, RATE>,
     const WIDTH: usize,
     const RATE: usize,
     const L: usize,
 > {
-    message: [Value<Fp>; L],
-    output: Value<Fp>,
+    message: [Value<F>; L],
+    output: Value<F>,
     _spec: PhantomData<S>,
 }
 
-impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize> Circuit<Fp>
-    for PoseidonCircuit<S, WIDTH, RATE, L>
+impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize> Circuit<F>
+    for PoseidonCircuit<F, S, WIDTH, RATE, L>
 {
-    type Config = PoseidonConfig<WIDTH, RATE, L>;
+    type Config = PoseidonConfig<F, WIDTH, RATE, L>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self {
             message: (0..L)
                 .map(|i| Value::unknown())
-                .collect::<Vec<Value<Fp>>>()
+                .collect::<Vec<Value<F>>>()
                 .try_into()
                 .unwrap(),
             output: Value::unknown(),
@@ -37,16 +38,16 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         }
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> PoseidonConfig<WIDTH, RATE, L> {
-        PoseidonChip::<S, WIDTH, RATE, L>::configure(meta)
+    fn configure(meta: &mut ConstraintSystem<F>) -> PoseidonConfig<F, WIDTH, RATE, L> {
+        PoseidonChip::<F, S, WIDTH, RATE, L>::configure(meta)
     }
 
     fn synthesize(
         &self,
-        config: PoseidonConfig<WIDTH, RATE, L>,
-        mut layouter: impl Layouter<Fp>,
+        config: PoseidonConfig<F, WIDTH, RATE, L>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
-        let poseidon_chip = PoseidonChip::<S, WIDTH, RATE, L>::construct(config);
+        let poseidon_chip = PoseidonChip::<F, S, WIDTH, RATE, L>::construct(config);
         let message_cells = poseidon_chip
             .load_private_inputs(layouter.namespace(|| "load private inputs"), self.message)?;
         let result = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), &message_cells)?;
@@ -60,22 +61,18 @@ mod tests {
 
     use super::PoseidonCircuit;
     use halo2_gadgets::poseidon::{
-        primitives::{self as poseidon, ConstantLength, P128Pow5T3 as OrchardNullifier, Spec},
+        primitives::{self as poseidon, ConstantLength, P128Pow5T3, Spec},
         Hash,
     };
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
     fn test_poseidon() {
-        let input = 99999999u64;
-        let message = [Fp::from(input)];
+        let input = 99u64;
+        let message = [Fp::from(input), Fp::from(input)];
         let output =
-            poseidon::Hash::<_, OrchardNullifier, ConstantLength<1>, 3, 2>::init().hash(message);
+            poseidon::Hash::<_, P128Pow5T3, ConstantLength<2>, 3, 2>::init().hash(message);
 
-        // print output 
-        println!("input: {:?}", input);
-        println!("output: {:?}", output);    
-
-        let circuit = PoseidonCircuit::<OrchardNullifier, 3, 2, 1> {
+        let circuit = PoseidonCircuit::<Fp, P128Pow5T3, 3, 2, 2> {
             message: message.map(|x| Value::known(x)),
             output: Value::known(output),
             _spec: PhantomData,
@@ -84,4 +81,5 @@ mod tests {
         let prover = MockProver::run(10, &circuit, vec![public_input.clone()]).unwrap();
         prover.assert_satisfied();
     }
+
 }
