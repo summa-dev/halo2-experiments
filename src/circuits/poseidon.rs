@@ -61,9 +61,7 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let poseidon_chip = PoseidonChip::<F, S, WIDTH, RATE, L>::construct(config);
-        let hash_input_cells = poseidon_chip
-            .load_private_inputs(layouter.namespace(|| "load private inputs"), self.hash_input)?;
-        let digest = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), &hash_input_cells)?;
+        let digest = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), self.hash_input)?;
         poseidon_chip.expose_public(layouter.namespace(|| "expose result"), &digest, 0)?;
         Ok(())
     }

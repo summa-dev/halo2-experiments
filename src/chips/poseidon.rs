@@ -76,13 +76,16 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
     }
 
     // L is the number of inputs to the hash function
-    // Assign the inputs to the advice colums
-    pub fn load_private_inputs(
+    // Takes the cells containing the input values of the hash function and return the cell containing the hash output
+    // It uses the pow5_chip to compute the hash
+    pub fn hash(
         &self,
         mut layouter: impl Layouter<F>,
         inputs: [Value<F>; L],
-    ) -> Result<[AssignedCell<F, F>; L], Error> {
-        layouter.assign_region(
+    ) -> Result<AssignedCell<F, F>, Error> {
+        
+        // Assign values to word_cells by copying it from the cells passed as input
+        let hash_input_cells = layouter.assign_region(
             || "load private inputs",
             |mut region| -> Result<[AssignedCell<F, F>; L], Error> {
                 let result = inputs
@@ -99,46 +102,16 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
                     .collect::<Result<Vec<AssignedCell<F, F>>, Error>>();
                 Ok(result?.try_into().unwrap())
             },
-        )
-    }
-
-    // L is the number of inputs to the hash function
-    // Takes the cells containing the input values of the hash function and return the cell containing the hash output
-    // It uses the pow5_chip to compute the hash
-    pub fn hash(
-        &self,
-        mut layouter: impl Layouter<F>,
-        hash_input_cells: &[AssignedCell<F, F>; L],
-    ) -> Result<AssignedCell<F, F>, Error> {
+        )?;
 
         let pow5_chip = Pow5Chip::construct(self.config.pow5_config.clone());
-        
-        // Assign values to word_cells by copying it from the cells passed as input
-        let copied_cells = layouter.assign_region(
-            || "load words",
-            |mut region| -> Result<[AssignedCell<F, F>; L], Error> {
-                let result = hash_input_cells
-                    .iter()
-                    .enumerate()
-                    .map(|(i, word)| {
-                        word.copy_advice(
-                            || format!("word {}", i),
-                            &mut region,
-                            self.config.hash_inputs[i],
-                            0,
-                        )
-                    })
-                    .collect::<Result<Vec<AssignedCell<F, F>>, Error>>();
-                Ok(result?.try_into().unwrap())
-            },
-        )?;
 
         // initialize the hasher
         let hasher = Hash::<_, _, S, ConstantLength<L>, WIDTH, RATE>::init(
             pow5_chip,
             layouter.namespace(|| "hasher"),
         )?;
-        hasher.hash(layouter.namespace(|| "hash"), copied_cells)
+        hasher.hash(layouter.namespace(|| "hash"), hash_input_cells)
     }
 
     pub fn expose_public(
