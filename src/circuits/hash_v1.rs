@@ -1,12 +1,6 @@
-use super::super::chips::hash_v1::{
-    Hash1Config, Hash1Chip
-};
+use super::super::chips::hash_v1::{Hash1Chip, Hash1Config};
 
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::*,
-    plonk::*
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 
 #[derive(Default)]
 struct Hash1Circuit<F> {
@@ -14,7 +8,6 @@ struct Hash1Circuit<F> {
 }
 
 impl<F: FieldExt> Circuit<F> for Hash1Circuit<F> {
-
     type Config = Hash1Config;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -45,11 +38,7 @@ impl<F: FieldExt> Circuit<F> for Hash1Circuit<F> {
 
 mod tests {
     use super::Hash1Circuit;
-    use halo2_proofs::{
-        circuit::Value,
-        dev::MockProver,
-        halo2curves::pasta::Fp
-    };
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
     fn test_hash_1() {
         let k = 4;
@@ -64,4 +53,3 @@ mod tests {
         assert!(prover.verify().is_err());
     }
 }
-

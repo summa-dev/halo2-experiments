@@ -1,20 +1,14 @@
-use super::super::chips::inclusion_check::{
-    InclusionCheckConfig, InclusionCheckChip
-};
+use super::super::chips::inclusion_check::{InclusionCheckChip, InclusionCheckConfig};
 
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::*,
-    plonk::*,
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 
-#[derive(Default)] 
+#[derive(Default)]
 
-// define circuit struct using array of usernames and balances 
+// define circuit struct using array of usernames and balances
 struct MyCircuit<F> {
     pub usernames: [Value<F>; 10],
     pub balances: [Value<F>; 10],
-    pub inclusion_index: u8
+    pub inclusion_index: u8,
 }
 
 impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
@@ -36,7 +30,7 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<F>
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         // We create a new instance of chip using the config passed as input
         let chip = InclusionCheckChip::<F>::construct(config);
@@ -50,30 +44,31 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
                 let (username_cell, balance_cell) = chip.assign_inclusion_check_row(
                     layouter.namespace(|| "inclusion row"),
                     self.usernames[_i],
-                    self.balances[_i])?;
-                
+                    self.balances[_i],
+                )?;
+
                 // expose the public values
-                chip.expose_public(layouter.namespace(|| "expose public"), &username_cell, &balance_cell)?;
+                chip.expose_public(
+                    layouter.namespace(|| "expose public"),
+                    &username_cell,
+                    &balance_cell,
+                )?;
             } else {
                 chip.assign_generic_row(
                     layouter.namespace(|| "generic row"),
                     self.usernames[_i],
-                    self.balances[_i])?;                
+                    self.balances[_i],
+                )?;
             }
         }
         Ok(())
     }
-
 }
 
 mod tests {
 
     use super::MyCircuit;
-    use halo2_proofs::{
-        circuit::Value,
-        dev::MockProver,
-        halo2curves::pasta::Fp
-};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
     fn test_inclusion_check_1() {
         let k = 4;
@@ -88,7 +83,7 @@ mod tests {
             balances[i] = Value::known(Fp::from(i as u64) * Fp::from(2));
         }
 
-        // Table is 
+        // Table is
         // username | balance
         // 0        | 0
         // 1        | 2
@@ -100,11 +95,11 @@ mod tests {
         // 7        | 14
         // 8        | 16
         // 9        | 18
-        
+
         let circuit = MyCircuit::<Fp> {
-            usernames, 
+            usernames,
             balances,
-            inclusion_index: 7
+            inclusion_index: 7,
         };
 
         // Test 1 - Inclusion check on a existing entry for the corresponding inclusion_index
@@ -121,34 +116,31 @@ mod tests {
         let public_input_invalid2 = vec![Fp::from(10), Fp::from(20)];
         let prover = MockProver::run(k, &circuit, vec![public_input_invalid2]).unwrap();
         assert!(prover.verify().is_err());
-
-        }
-
-
     }
+}
 
-    #[cfg(feature = "dev-graph")]
-    #[test]
-    fn print_inclusion_check() {
-        use plotters::prelude::*;
-        use halo2curves::{pasta::Fp};
-        
-        let root = BitMapBackend::new("inclusion-check-1-layout.png", (1024, 3096)).into_drawing_area();
-        root.fill(&WHITE).unwrap();
-        let root = root
-            .titled("Inclusion Check 1 Layout", ("sans-serif", 60))
-            .unwrap();
+#[cfg(feature = "dev-graph")]
+#[test]
+fn print_inclusion_check() {
+    use halo2_proofs::{halo2curves::pasta::Fp};
+    use plotters::prelude::*;
 
-        let mut usernames: [Value<Fp>; 10] = [Value::known(Fp::from(0)); 10];
-        let mut balances: [Value<Fp>; 10] = [Value::known(Fp::from(0)); 10];
-    
-        let circuit = MyCircuit::<Fp> {
-            usernames, 
-            balances,
-            inclusion_index: 2
-        };
+    let root = BitMapBackend::new("inclusion-check-1-layout.png", (1024, 3096)).into_drawing_area();
+    root.fill(&WHITE).unwrap();
+    let root = root
+        .titled("Inclusion Check 1 Layout", ("sans-serif", 60))
+        .unwrap();
 
-        halo2_proofs::dev::CircuitLayout::default()
-            .render(3, &circuit, &root)
-            .unwrap();
-    }
+    let mut usernames: [Value<Fp>; 10] = [Value::known(Fp::from(0)); 10];
+    let mut balances: [Value<Fp>; 10] = [Value::known(Fp::from(0)); 10];
+
+    let circuit = MyCircuit::<Fp> {
+        usernames,
+        balances,
+        inclusion_index: 2,
+    };
+
+    halo2_proofs::dev::CircuitLayout::default()
+        .render(3, &circuit, &root)
+        .unwrap();
+}

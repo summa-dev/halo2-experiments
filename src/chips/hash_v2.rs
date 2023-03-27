@@ -1,11 +1,6 @@
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::*,
-    plonk::*,
-    poly::Rotation
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
 pub struct Hash2Config {
@@ -21,11 +16,10 @@ pub struct Hash2Chip<F: FieldExt> {
 }
 
 impl<F: FieldExt> Hash2Chip<F> {
-
-    pub fn construct(config:Hash2Config) -> Self {
+    pub fn construct(config: Hash2Config) -> Self {
         Self {
             config,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 
@@ -35,7 +29,6 @@ impl<F: FieldExt> Hash2Chip<F> {
         selector: Selector,
         instance: Column<Instance>,
     ) -> Hash2Config {
-
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
@@ -52,7 +45,7 @@ impl<F: FieldExt> Hash2Chip<F> {
             let a = meta.query_advice(col_a, Rotation::cur());
             let b = meta.query_advice(col_b, Rotation::cur());
             let c = meta.query_advice(col_c, Rotation::cur());
-       
+
             vec![s * (a + b - c)]
         });
 
@@ -63,43 +56,28 @@ impl<F: FieldExt> Hash2Chip<F> {
         }
     }
 
-    pub fn hash(   
+    pub fn hash(
         &self,
         mut layouter: impl Layouter<F>,
         a: Value<F>,
         b: Value<F>,
     ) -> Result<AssignedCell<F, F>, Error> {
+        layouter.assign_region(
+            || "hash row",
+            |mut region| {
+                // enable hash selector
+                self.config.selector.enable(&mut region, 0)?;
 
-        layouter.assign_region(|| "hash row", |mut region| {
+                // Assign the value to username and balance to the cell inside the region
+                region.assign_advice(|| "a", self.config.advice[0], 0, || a)?;
 
-            // enable hash selector 
-            self.config.selector.enable(&mut region, 0)?;
+                region.assign_advice(|| "b", self.config.advice[1], 0, || b)?;
 
-            // Assign the value to username and balance to the cell inside the region
-            region.assign_advice(
-                || "a",
-                self.config.advice[0], 
-                0, 
-                || a,
-             )?;
+                let c_cell = region.assign_advice(|| "c", self.config.advice[2], 0, || a + b)?;
 
-             region.assign_advice(
-                || "b",
-                self.config.advice[1], 
-                0, 
-                || b,
-             )?;
-
-            let c_cell = region.assign_advice(
-                || "c",
-                self.config.advice[2], 
-                0, 
-                || a + b,
-             )?;
-
-             Ok(c_cell)
-        })
-
+                Ok(c_cell)
+            },
+        )
     }
 
     // Enforce permutation check between b cell and instance column
@@ -111,5 +89,4 @@ impl<F: FieldExt> Hash2Chip<F> {
     ) -> Result<(), Error> {
         layouter.constrain_instance(c_cell.cell(), self.config.instance, row)
     }
-
 }

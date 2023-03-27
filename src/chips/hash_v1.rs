@@ -1,11 +1,6 @@
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::*,
-    plonk::*,
-    poly::Rotation
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
 pub struct Hash1Config {
@@ -21,11 +16,10 @@ pub struct Hash1Chip<F: FieldExt> {
 }
 
 impl<F: FieldExt> Hash1Chip<F> {
-
-    pub fn construct(config:Hash1Config) -> Self {
+    pub fn construct(config: Hash1Config) -> Self {
         Self {
             config,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 
@@ -35,7 +29,6 @@ impl<F: FieldExt> Hash1Chip<F> {
         selector: Selector,
         instance: Column<Instance>,
     ) -> Hash1Config {
-
         let col_a = advice[0];
         let col_b = advice[1];
         let hash_selector = selector;
@@ -51,7 +44,7 @@ impl<F: FieldExt> Hash1Chip<F> {
             let s = meta.query_selector(hash_selector);
             let a = meta.query_advice(col_a, Rotation::cur());
             let b = meta.query_advice(col_b, Rotation::cur());
-            
+
             vec![s * (Expression::Constant(F::from(2)) * a - b)]
         });
 
@@ -62,35 +55,30 @@ impl<F: FieldExt> Hash1Chip<F> {
         }
     }
 
-    pub fn assign_advice_row(   
+    pub fn assign_advice_row(
         &self,
         mut layouter: impl Layouter<F>,
-        a: Value<F>
+        a: Value<F>,
     ) -> Result<AssignedCell<F, F>, Error> {
+        layouter.assign_region(
+            || "adivce row",
+            |mut region| {
+                // enable hash selector
+                self.config.selector.enable(&mut region, 0)?;
 
-        layouter.assign_region(|| "adivce row", |mut region| {
+                // Assign the value to username and balance to the cell inside the region
+                region.assign_advice(|| "a", self.config.advice[0], 0, || a)?;
 
-            // enable hash selector 
-            self.config.selector.enable(&mut region, 0)?;
+                let b_cell = region.assign_advice(
+                    || "b",
+                    self.config.advice[1],
+                    0,
+                    || a * Value::known(F::from(2)),
+                )?;
 
-            // Assign the value to username and balance to the cell inside the region
-            region.assign_advice(
-                || "a",
-                self.config.advice[0], 
-                0, 
-                || a,
-             )?;
-
-            let b_cell = region.assign_advice(
-                || "b",
-                self.config.advice[1], 
-                0, 
-                || a * Value::known(F::from(2)),
-             )?;
-
-             Ok(b_cell)
-        })
-
+                Ok(b_cell)
+            },
+        )
     }
 
     // Enforce permutation check between b cell and instance column
@@ -102,5 +90,4 @@ impl<F: FieldExt> Hash1Chip<F> {
     ) -> Result<(), Error> {
         layouter.constrain_instance(b_cell.cell(), self.config.instance, row)
     }
-
 }

@@ -1,16 +1,15 @@
-use super::super::chips::merkle_v1::{MerkleTreeV1Chip, MerkleTreeV1Config};
-
+use super::super::chips::merkle_v2::{MerkleTreeV2Chip, MerkleTreeV2Config};
 use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 
 #[derive(Default)]
-struct MerkleTreeV1Circuit<F> {
+struct MerkleTreeV2Circuit<F> {
     pub leaf: Value<F>,
     pub path_elements: Vec<Value<F>>,
     pub path_indices: Vec<Value<F>>,
 }
 
-impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
-    type Config = MerkleTreeV1Config;
+impl<F: FieldExt> Circuit<F> for MerkleTreeV2Circuit<F> {
+    type Config = MerkleTreeV2Config;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
@@ -25,15 +24,7 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
         let swap_selector = meta.selector();
         let hash_selector = meta.selector();
         let instance = meta.instance_column();
-
-        MerkleTreeV1Chip::configure(
-            meta,
-            [col_a, col_b, col_c],
-            bool_selector,
-            swap_selector,
-            hash_selector,
-            instance,
-        )
+        MerkleTreeV2Chip::configure(meta, [col_a, col_b, col_c], bool_selector, swap_selector, hash_selector, instance)
     }
 
     fn synthesize(
@@ -41,23 +32,21 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
         config: Self::Config,
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
-        // We create a new instance of chip using the config passed as input
-        let chip = MerkleTreeV1Chip::<F>::construct(config);
-
-        let mut leaf_cell = chip.assing_leaf(layouter.namespace(|| "load leaf"), self.leaf)?;
-
-        // Verify that the leaf matches the public input
-        chip.expose_public(layouter.namespace(|| "leaf"), &leaf_cell, 0)?;
+        let chip = MerkleTreeV2Chip::construct(config);
+        let leaf_cell = chip.assing_leaf(layouter.namespace(|| "assign leaf"), self.leaf)?;
+        chip.expose_public(layouter.namespace(|| "public leaf"), &leaf_cell, 0);
 
         // apply it for level 0 of the merkle tree
+        // node cell passed as input is the leaf cell
         let mut digest = chip.merkle_prove_layer(
-            layouter.namespace(|| "level 0"),
+            layouter.namespace(|| "merkle_prove"),
             &leaf_cell,
             self.path_elements[0],
             self.path_indices[0],
         )?;
 
         // apply it for the remaining levels of the merkle tree
+        // node cell passed as input is the digest cell
         for i in 1..self.path_elements.len() {
             digest = chip.merkle_prove_layer(
                 layouter.namespace(|| "next level"),
@@ -66,19 +55,17 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
                 self.path_indices[i],
             )?;
         }
-
-        chip.expose_public(layouter.namespace(|| "root"), &digest, 1)?;
-
+        chip.expose_public(layouter.namespace(|| "public root"), &digest, 1)?;
         Ok(())
     }
 }
 
 mod tests {
-    use super::MerkleTreeV1Circuit;
+    use super::MerkleTreeV2Circuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
 
     #[test]
-    fn test_merkle_tree_1() {
+    fn test_merkle_tree_2() {
         let leaf = 99u64;
         let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
         let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
@@ -94,7 +81,7 @@ mod tests {
             .map(|x| Value::known(Fp::from(x.to_owned())))
             .collect();
 
-        let circuit = MerkleTreeV1Circuit {
+        let circuit = MerkleTreeV2Circuit {
             leaf: leaf_fp,
             path_elements: elements_fp,
             path_indices: indices_fp,
@@ -106,16 +93,17 @@ mod tests {
     }
 }
 
+
 #[cfg(feature = "dev-graph")]
 #[test]
-fn print_merkle_tree_1() {
+fn print_merkle_tree_2() {
     use halo2_proofs::halo2curves::pasta::Fp;
     use plotters::prelude::*;
 
-    let root = BitMapBackend::new("merkle-tree-1-layout.png", (1024, 3096)).into_drawing_area();
+    let root = BitMapBackend::new("merkle-tree-2-layout.png", (1024, 3096)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let root = root
-        .titled("Merkle Tree 1 Layout", ("sans-serif", 60))
+        .titled("Merkle Tree 2 Layout", ("sans-serif", 60))
         .unwrap();
 
         let leaf = 99u64;
@@ -133,7 +121,7 @@ fn print_merkle_tree_1() {
             .map(|x| Value::known(Fp::from(x.to_owned())))
             .collect();
 
-        let circuit = MerkleTreeV1Circuit {
+        let circuit = MerkleTreeV2Circuit {
             leaf: leaf_fp,
             path_elements: elements_fp,
             path_indices: indices_fp,

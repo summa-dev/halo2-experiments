@@ -1,15 +1,9 @@
-use super::super::chips::inclusion_check_v2::{
-    InclusionCheckV2Config, InclusionCheckV2Chip
-};
+use super::super::chips::inclusion_check_v2::{InclusionCheckV2Chip, InclusionCheckV2Config};
 
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::*,
-    plonk::*,
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 
-#[derive(Default)] 
-// define circuit struct using array of usernames and balances 
+#[derive(Default)]
+// define circuit struct using array of usernames and balances
 struct MyCircuit<F> {
     pub usernames: [Value<F>; 10],
     pub balances: [Value<F>; 10],
@@ -33,43 +27,55 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
         let selector = meta.selector();
         let instance = meta.instance_column();
 
-        InclusionCheckV2Chip::configure(meta, [col_username, col_balance, col_username_accumulator, col_balance_accumulator], selector, instance)
+        InclusionCheckV2Chip::configure(
+            meta,
+            [
+                col_username,
+                col_balance,
+                col_username_accumulator,
+                col_balance_accumulator,
+            ],
+            selector,
+            instance,
+        )
     }
 
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<F>
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         // We create a new instance of chip using the config passed as input
         let chip = InclusionCheckV2Chip::<F>::construct(config);
 
         let (user_acc_last_row_cell, balance_acc_last_row_cell) = chip.assign_rows(
-        layouter.namespace(|| "init table"),
-        self.usernames,
-        self.balances,
-        self.zero_val,
-        self.inclusion_index
+            layouter.namespace(|| "init table"),
+            self.usernames,
+            self.balances,
+            self.zero_val,
+            self.inclusion_index,
         )?;
 
-        chip.expose_public(layouter.namespace(|| "expose public"), &user_acc_last_row_cell, 0)?;
-        chip.expose_public(layouter.namespace(|| "expose public"), &balance_acc_last_row_cell, 1)?;
+        chip.expose_public(
+            layouter.namespace(|| "expose public"),
+            &user_acc_last_row_cell,
+            0,
+        )?;
+        chip.expose_public(
+            layouter.namespace(|| "expose public"),
+            &balance_acc_last_row_cell,
+            1,
+        )?;
 
         Ok(())
     }
-
 }
-
 
 mod tests {
 
     use super::MyCircuit;
-    use halo2_proofs::{
-        circuit::Value,
-        dev::MockProver,
-        halo2curves::pasta::Fp
-    };
-    
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+
     #[test]
     fn test_inclusion_check_2() {
         let k = 5;
@@ -84,7 +90,7 @@ mod tests {
             balances[i] = Value::known(Fp::from(i as u64) * Fp::from(2));
         }
 
-        // Table is 
+        // Table is
         // username | balance
         // 0        | 0
         // 1        | 2
@@ -96,9 +102,9 @@ mod tests {
         // 7        | 14
         // 8        | 16
         // 9        | 18
-        
+
         let circuit = MyCircuit::<Fp> {
-            usernames, 
+            usernames,
             balances,
             inclusion_index: 7,
             zero_val: Value::known(Fp::zero()),
@@ -107,7 +113,7 @@ mod tests {
         // Test 1 - Inclusion check on a existing entry for the corresponding inclusion_index
         let public_input_valid = vec![Fp::from(7), Fp::from(14)];
         let prover = MockProver::run(k, &circuit, vec![public_input_valid]).unwrap();
-        prover.assert_satisfied();        
+        prover.assert_satisfied();
 
         // Test 2 - Inclusion check on a existing entry but not for the corresponding inclusion_index
         let public_input_invalid = vec![Fp::from(8), Fp::from(16)];
@@ -118,8 +124,5 @@ mod tests {
         let public_input_invalid2 = vec![Fp::from(10), Fp::from(20)];
         let prover = MockProver::run(k, &circuit, vec![public_input_invalid2]).unwrap();
         assert!(prover.verify().is_err());
-
-        }
-
-
     }
+}

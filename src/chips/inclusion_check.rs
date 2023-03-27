@@ -1,28 +1,23 @@
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::*,
-    plonk::*,
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 
 #[derive(Debug, Clone)]
-pub struct InclusionCheckConfig { 
-    pub advice: [ Column<Advice>; 2],
+pub struct InclusionCheckConfig {
+    pub advice: [Column<Advice>; 2],
     pub instance: Column<Instance>,
 }
 
-pub struct InclusionCheckChip<F: FieldExt>  {
+pub struct InclusionCheckChip<F: FieldExt> {
     config: InclusionCheckConfig,
     _marker: PhantomData<F>,
 }
 
 impl<F: FieldExt> InclusionCheckChip<F> {
-
     pub fn construct(config: InclusionCheckConfig) -> Self {
         Self {
             config,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 
@@ -31,7 +26,6 @@ impl<F: FieldExt> InclusionCheckChip<F> {
         advice: [Column<Advice>; 2],
         instance: Column<Instance>,
     ) -> InclusionCheckConfig {
-        
         // decompose array to fetch 2 advice column
         let col_username = advice[0];
         let col_balance = advice[1];
@@ -42,9 +36,9 @@ impl<F: FieldExt> InclusionCheckChip<F> {
         // we also enable equality on the instance column as we need to execute permutation check on that
         meta.enable_equality(instance);
 
-        InclusionCheckConfig{
+        InclusionCheckConfig {
             advice: [col_username, col_balance],
-            instance
+            instance,
         }
     }
 
@@ -52,57 +46,44 @@ impl<F: FieldExt> InclusionCheckChip<F> {
         &self,
         mut layouter: impl Layouter<F>,
         username: Value<F>,
-        balance: Value<F>
+        balance: Value<F>,
     ) -> Result<(), Error> {
-        layouter.assign_region(|| "generic row", |mut region| {
+        layouter.assign_region(
+            || "generic row",
+            |mut region| {
+                // Assign the value to username and balance to the cell inside the region
+                region.assign_advice(|| "username", self.config.advice[0], 0, || username)?;
 
-            // Assign the value to username and balance to the cell inside the region
-            region.assign_advice(
-                || "username",
-                self.config.advice[0], 
-                0, 
-                || username,
-             )?;
+                region.assign_advice(|| "balance", self.config.advice[1], 0, || balance)?;
 
-            region.assign_advice(
-                || "balance",
-                self.config.advice[1], 
-                0, 
-                || balance,
-             )?; 
-
-             Ok(())
-        })
-
-   }
+                Ok(())
+            },
+        )
+    }
 
     pub fn assign_inclusion_check_row(
         &self,
         mut layouter: impl Layouter<F>,
         username: Value<F>,
-        balance: Value<F>
-    ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> { 
+        balance: Value<F>,
+    ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> {
+        layouter.assign_region(
+            || "inclusion row",
+            |mut region| {
+                // Assign the value to username and balance and return assigned cell
+                let username_cell = region.assign_advice(
+                    || "username", // we are assigning to column a
+                    self.config.advice[0],
+                    0,
+                    || username,
+                )?;
 
-        layouter.assign_region(|| "inclusion row", |mut region| {
+                let balance_cell =
+                    region.assign_advice(|| "balance", self.config.advice[1], 0, || balance)?;
 
-            // Assign the value to username and balance and return assigned cell
-            let username_cell = region.assign_advice(
-                || "username", // we are assigning to column a
-                self.config.advice[0], 
-                0, 
-                || username,
-             )?;
-
-             let balance_cell = region.assign_advice(
-                || "balance",
-                self.config.advice[1], 
-                0, 
-                || balance,
-             )?;
-
-            Ok((username_cell, balance_cell))
-        })
-
+                Ok((username_cell, balance_cell))
+            },
+        )
     }
 
     pub fn expose_public(
@@ -110,7 +91,7 @@ impl<F: FieldExt> InclusionCheckChip<F> {
         mut layouter: impl Layouter<F>,
         public_username_cell: &AssignedCell<F, F>,
         public_balance_cell: &AssignedCell<F, F>,
-    )  -> Result<(), Error> {
+    ) -> Result<(), Error> {
         // enforce equality between public_username_cell and instance column at row 0
         layouter.constrain_instance(public_username_cell.cell(), self.config.instance, 0)?;
         // enforce equality between balance_username_cell and instance column at row 1
