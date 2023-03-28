@@ -271,16 +271,9 @@ For the other levels of the tree:
 | a                | b                    | c              |    d              |   e   | f             |bool_selector | swap_selector | hash_selector  | sum_selector
 | --               | -                    | --             |   ---             |  ---  |  ---          | --           | ---           | ---           | ---
 | computed_hash_prev_level    | computed_sum_prev_level | element_hash   |element_balance    | index |   -           |     1        | 1             | 0            | 0
-| input_left_hash  | input_left_balance   |input_right_hash|input_right_balance|digest |  computed_sum |    0         | 0             | 1           | 1
+| input_left_hash  | input_left_balance   |input_right_hash|input_right_balance|computed_hash |  computed_sum |    0         | 0             | 1           | 1
 
 When moving to the next level of the tree, the `computed_hash_prev_level` is copied from the `digest` of the previous level. While the `computed_sum_prev_level` is copied from the `computed_sum` at the previous level.
-
-For the other levels of the tree:
-
-| a                | b                       | c              |    d             |   e   | bool_selector | swap_selector | hash_selector
-| --               | -                       | --             |   ---            |  ---  |   --          | ---           | ---
-| computed_hash    | computed_sum_prev_level | element_hash   |element_balance   | index |       1       | 1             | 0
-| input_left_hash  | input_right_balance     | input_left_hash|input_left_balance|computed_hash |       0       | 0             | 1
 
 Furthermore, the chip contains three permutation check:
 
