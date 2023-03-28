@@ -7,7 +7,6 @@ pub struct MerkleTreeV2Config {
     pub advice: [Column<Advice>; 3],
     pub bool_selector: Selector,
     pub swap_selector: Selector,
-    pub hash_selector: Selector,
     pub instance: Column<Instance>,
     pub hash2_config: Hash2Config,
 }
@@ -28,14 +27,14 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
     pub fn configure(
         meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 3],
-        bool_selector: Selector,
-        swap_selector: Selector,
-        hash_selector: Selector,
         instance: Column<Instance>,
     ) -> MerkleTreeV2Config {
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
+
+        let bool_selector = meta.selector();
+        let swap_selector = meta.selector();
 
         // Enable equality on the advice column c and instance column to enable permutation check
         // between the last hash digest and the root hash passed inside the instance column
@@ -74,13 +73,12 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
             ]
         });
 
-        let hash2_config = Hash2Chip::configure(meta, advice, hash_selector, instance);
+        let hash2_config = Hash2Chip::configure(meta, advice, instance);
 
         MerkleTreeV2Config {
             advice: [col_a, col_b, col_c],
             bool_selector,
             swap_selector,
-            hash_selector,
             instance,
             hash2_config,
         }

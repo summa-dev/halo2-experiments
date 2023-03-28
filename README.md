@@ -149,56 +149,21 @@ The MerkleTreeV1Config contains 3 advice column, 1 bool_selector, 1 swap_selecto
 
 # Experiment 6 - Merkle Tree V2
 
-This Merkle Tree specification works exactly the same as the previous one. The only difference is that it makes use of the `Hash2Chip` and `Hash2Config` created in experiment 4 rather than rewriting the logic of the hash inside the Circuit, as it was done in experiment 5.
+This Merkle Tree specification works exactly the same as the previous one. The only difference is that it makes use of the `Hash2Chip` and `Hash2Config` created in experiment 4 rather than rewriting the logic of the hash inside the MerkleTree Chip, as it was done in experiment 5. 
+
+### Configuration
 
 It's worth nothing how the `Hash2Chip` and `Hash2Config` are used in this circuit. As mentioned in the [Halo2 book - Composing Chips](https://zcash.github.io/halo2/concepts/chips.html#composing-chips) these should be composed as in a tree. 
 
-The top-level chip is this case is the `MerkleTreeV2Chip`. Its configuration should contain all the advice columns, instance columns, fixed columns and selector columns that are used in the circuit.
+- MerkleTreeV2Chip
+    - Hash2Chip
 
-```rust
-    pub fn configure(
-        meta: &mut ConstraintSystem<F>,
-        advice: [Column<Advice>; 3],
-        bool_selector: Selector,
-        swap_selector: Selector,
-        hash_selector: Selector,
-        instance: Column<Instance>,
-    ) -> MerkleTreeV2Config {
-        ...
-    } 
-``` 
+The MerkleTreeV2Config contains 3 advice column, 1 bool_selector, 1 swap_selector, 1 instance column and the Hash2Config.
 
-A subset of this configuration can be also shared across any child chip to be used inside the circuit. For example, the `Hash2Chip` is composed inside the `MerkleTreeV2Chip` and it uses the same advice columns and one selector. 
-
-```rust
-
-    pub fn configure(
-        meta: &mut ConstraintSystem<F>,
-        advice: [Column<Advice>; 3],
-        bool_selector: Selector,
-        swap_selector: Selector,
-        hash_selector: Selector,
-        instance: Column<Instance>,
-    ) -> MerkleTreeV2Config {
-        ...
-        let hash2_config = Hash2Chip::configure(meta, advice, hash_selector, instance);
-
-        MerkleTreeV2Config {
-            advice: [col_a, col_b, col_c],
-            bool_selector,
-            swap_selector,
-            hash_selector,
-            instance,
-            hash2_config
-        }
-        ...
-    } 
-
-``` 
+The advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the MerkleTreeV2Chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because these selectors are specific for the MerkleTreeV2Chip and don't need to be shared across other chips. The child chip Hash2Chip is instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because the Hash2Chip is specific for the MerkleTreeV2Chip by passing in the advice columns and the instance column that are shared between the two chips. In this way we can leverage `Hash2Chip` with its gates and its assignment function inside our MerkleTreeV2Chip. 
 
 `cargo test -- --nocapture test_merkle_tree_1`
 
-Later on we can leverage the `hash2_chip` with its gates and its assignment function inside our merkle tree chip. 
 
 # Experiment 7 - Poseidon Hash
 
