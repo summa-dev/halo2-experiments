@@ -175,11 +175,56 @@ A subset of this configuration can be also shared across any child chip to be us
 
 ``` 
 
+`cargo test -- --nocapture test_merkle_tree_1`
+
 Later on we can leverage the `hash2_chip` with its gates and its assignment function inside our merkle tree chip. 
 
+# Experiment 7 - Poseidon Hash
 
+Create a chip that performs a Poseidon hash leveraging the gadget provided by the Halo2 Library.
+Based on this implementation => https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/circuits/poseidon.rs
 
+The PoseidonChip ineriths the configuration of the Pow5Chip, which is a gadget provided by the Halo2 Library. The configuration adds one advice column that takes the input of the hash function and one instance column that takes the expected output of the hash function.
 
+Similarly to the previous experiment, the PoseidonChip is a the top-level chip of the circuit while the Pow5Chip can be seen as a child chip as you can see from the configuration of the PoseidonChip
+
+```rust
+pub struct PoseidonConfig<F: FieldExt, const WIDTH: usize, const RATE: usize, const L: usize> {
+    hash_inputs: Vec<Column<Advice>>,
+    instance: Column<Instance>,
+    pow5_config: Pow5Config<F, WIDTH, RATE>,
+}
+```
+
+At proving time:
+
+- We instatiate the PoseidonCircuit with the input of the hash function and the expected output of the hash function
+
+```rust
+        let input = 99u64;
+        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input)];
+
+        // compute the hash outside of the circuit
+        let digest =
+            poseidon::Hash::<_, P128Pow5T3, ConstantLength<3>, 3, 2>::init().hash(hash_input);
+        
+        let circuit = PoseidonCircuit::<Fp, P128Pow5T3, 3, 2, 3> {
+            hash_input: hash_input.map(|x| Value::known(x)),
+            digest: Value::known(digest),
+            _spec: PhantomData,
+        };
+```
+
+In particular we can see that the poseidon hash is instantiated using different parameters such as P128Pow5T3, ConstantLength<3>, 3, 2 (when performing the hash), and P128Pow5T3, 3, 2, 3 when instantiating the circuit. These values represent poseidon specific parameters such as the number of rounds to be performed.  The only thing that we should care about in our APIs is `ConstantLength<n>` and the [parameter L in the PoseidonCircuit struct](https://github.com/summa-dev/halo2-experiments/blob/poseidon-hash/src/circuits/poseidon.rs#L16). This represent the number of inputs of the hash function and can be modified by the developer.
+
+- All the columns (`hash_inputs`, `instance` and all the columns to be passed to the `pow5_config`) are created in the [`configure` function of the PoseidonCircuit](https://github.com/summa-dev/halo2-experiments/blob/poseidon-hash/src/circuits/poseidon.rs#L41). This function returns the PoseidonConfig instantiation. 
+
+- The instantiation of the PoseidonConfig is passed to the `syntesize` function of the PoseidonCircuit. This function will pass the input values for the witness generation to the chip that will take care of assigning the values to the columns and verifying the constraints.
+
+Test:
+
+`cargo test -- --nocapture test_poseidon`
+`cargo test --all-features -- --nocapture print_poseidon`
 
 
 TO DO: 

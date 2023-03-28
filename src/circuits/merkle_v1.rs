@@ -44,7 +44,7 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
         // We create a new instance of chip using the config passed as input
         let chip = MerkleTreeV1Chip::<F>::construct(config);
 
-        let mut leaf_cell = chip.assing_leaf(layouter.namespace(|| "load leaf"), self.leaf)?;
+        let leaf_cell = chip.assing_leaf(layouter.namespace(|| "load leaf"), self.leaf)?;
 
         // Verify that the leaf matches the public input
         chip.expose_public(layouter.namespace(|| "leaf"), &leaf_cell, 0)?;
@@ -73,6 +73,7 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::MerkleTreeV1Circuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
@@ -101,7 +102,7 @@ mod tests {
         };
 
         let public_input = vec![Fp::from(leaf), Fp::from(digest)];
-        let prover = MockProver::run(10, &circuit, vec![public_input.clone()]).unwrap();
+        let prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
         prover.assert_satisfied();
     }
 }
@@ -112,32 +113,33 @@ fn print_merkle_tree_1() {
     use halo2_proofs::halo2curves::pasta::Fp;
     use plotters::prelude::*;
 
-    let root = BitMapBackend::new("merkle-tree-1-layout.png", (1024, 3096)).into_drawing_area();
+    let root =
+        BitMapBackend::new("prints/merkle-tree-1-layout.png", (1024, 3096)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let root = root
         .titled("Merkle Tree 1 Layout", ("sans-serif", 60))
         .unwrap();
 
-        let leaf = 99u64;
-        let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
-        let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
-        let digest: u64 = leaf + elements.iter().sum::<u64>();
+    let leaf = 99u64;
+    let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
+    let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
+    let digest: u64 = leaf + elements.iter().sum::<u64>();
 
-        let leaf_fp = Value::known(Fp::from(leaf));
-        let elements_fp: Vec<Value<Fp>> = elements
-            .iter()
-            .map(|x| Value::known(Fp::from(x.to_owned())))
-            .collect();
-        let indices_fp: Vec<Value<Fp>> = indices
-            .iter()
-            .map(|x| Value::known(Fp::from(x.to_owned())))
-            .collect();
+    let leaf_fp = Value::known(Fp::from(leaf));
+    let elements_fp: Vec<Value<Fp>> = elements
+        .iter()
+        .map(|x| Value::known(Fp::from(x.to_owned())))
+        .collect();
+    let indices_fp: Vec<Value<Fp>> = indices
+        .iter()
+        .map(|x| Value::known(Fp::from(x.to_owned())))
+        .collect();
 
-        let circuit = MerkleTreeV1Circuit {
-            leaf: leaf_fp,
-            path_elements: elements_fp,
-            path_indices: indices_fp,
-        };
+    let circuit = MerkleTreeV1Circuit {
+        leaf: leaf_fp,
+        path_elements: elements_fp,
+        path_indices: indices_fp,
+    };
 
     halo2_proofs::dev::CircuitLayout::default()
         .render(4, &circuit, &root)

@@ -1,12 +1,6 @@
-use super::super::chips::hash_v2::{
-    Hash2Config, Hash2Chip
-};
+use super::super::chips::hash_v2::{Hash2Chip, Hash2Config};
 
-use halo2_proofs::{
-    arithmetic::FieldExt,
-    circuit::*,
-    plonk::*
-};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 
 #[derive(Default)]
 struct Hash2Circuit<F> {
@@ -15,7 +9,6 @@ struct Hash2Circuit<F> {
 }
 
 impl<F: FieldExt> Circuit<F> for Hash2Circuit<F> {
-
     type Config = Hash2Config;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -47,13 +40,10 @@ impl<F: FieldExt> Circuit<F> for Hash2Circuit<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::Hash2Circuit;
-    use halo2_proofs::{
-        circuit::Value,
-        dev::MockProver,
-        halo2curves::pasta::Fp
-    };
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
 
     #[test]
     fn test_hash_2() {
@@ -64,13 +54,12 @@ mod tests {
         let b = Value::known(Fp::from(7));
         let public_inputs = vec![Fp::from(9)];
         let circuit = Hash2Circuit { a, b };
-        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
 
         // failure case
         let public_inputs = vec![Fp::from(8)];
-        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
         assert!(prover.verify().is_err());
     }
 }
-

@@ -50,7 +50,7 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
         meta.create_gate("bool constraint", |meta| {
             let s = meta.query_selector(bool_selector);
             let c = meta.query_advice(col_c, Rotation::cur());
-            vec![s * c.clone() * (Expression::Constant(F::from(1)) - c.clone())]
+            vec![s * c.clone() * (Expression::Constant(F::from(1)) - c)]
         });
 
         // Enforces that if the swap bit (c) is on, l=b and r=a. Otherwise, l=a and r=b.
@@ -65,8 +65,8 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
             let r = meta.query_advice(col_b, Rotation::next());
             vec![
                 s * (c * Expression::Constant(F::from(2)) * (b.clone() - a.clone())
-                    - (l - a.clone())
-                    - (b.clone() - r)),
+                    - (l - a)
+                    - (b - r)),
             ]
         });
 
@@ -119,8 +119,18 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
                 // Row 0: | node_cell | Path | Bit |
                 // at tree_level 0, node_cell is the leaf
                 // at next level, node_cell is the digest of the previous level
-                node_cell.copy_advice(|| "prev node_cell copy constraint", &mut region, self.config.advice[0], 0)?;
-                region.assign_advice(|| "assign path element", self.config.advice[1], 0, || path_element)?;
+                node_cell.copy_advice(
+                    || "prev node_cell copy constraint",
+                    &mut region,
+                    self.config.advice[0],
+                    0,
+                )?;
+                region.assign_advice(
+                    || "assign path element",
+                    self.config.advice[1],
+                    0,
+                    || path_element,
+                )?;
                 region.assign_advice(|| "assign bit", self.config.advice[2], 0, || index)?;
 
                 // Row 1: | InputLeft | InputRight | Digest |

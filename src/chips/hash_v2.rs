@@ -41,7 +41,6 @@ impl<F: FieldExt> Hash2Chip<F> {
         meta.enable_equality(col_a);
         meta.enable_equality(col_b);
 
-
         // enforce dummy hash function by creating a custom gate
         meta.create_gate("hash constraint", |meta| {
             // enforce a + b = c, namely a + b - c = 0
@@ -88,10 +87,12 @@ impl<F: FieldExt> Hash2Chip<F> {
                 a_cell.copy_advice(|| "input_a", &mut region, self.config.advice[0], 0)?;
                 b_cell.copy_advice(|| "input_b", &mut region, self.config.advice[1], 0)?;
 
-                let c_cell = region.assign_advice(|| "c", self.config.advice[2], 0, || {
-                    a_cell.value().map(|x| x.to_owned())
-                        + b_cell.value().map(|x| x.to_owned())
-                })?;
+                let c_cell = region.assign_advice(
+                    || "c",
+                    self.config.advice[2],
+                    0,
+                    || a_cell.value().map(|x| x.to_owned()) + b_cell.value().map(|x| x.to_owned()),
+                )?;
 
                 Ok(c_cell)
             },

@@ -61,7 +61,7 @@ impl<F: FieldExt> InclusionCheckV2Chip<F> {
 
             vec![
                 s.clone() * (username + prev_username_accumulator - username_accumulator),
-                s.clone() * (balance + prev_balance_accumulator - balance_accumulator),
+                s * (balance + prev_balance_accumulator - balance_accumulator),
             ]
         });
 

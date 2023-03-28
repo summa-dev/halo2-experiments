@@ -36,6 +36,7 @@ impl<F: FieldExt> Circuit<F> for Hash1Circuit<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::Hash1Circuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
@@ -45,11 +46,11 @@ mod tests {
         let a = Value::known(Fp::from(2));
         let public_inputs = vec![Fp::from(4)];
         let circuit = Hash1Circuit { a };
-        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
 
         let public_inputs = vec![Fp::from(8)];
-        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
         assert!(prover.verify().is_err());
     }
 }
