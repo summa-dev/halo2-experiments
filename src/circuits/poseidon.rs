@@ -24,7 +24,7 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
     fn without_witnesses(&self) -> Self {
         Self {
             hash_input: (0..L)
-                .map(|i| Value::unknown())
+                .map(|_i| Value::unknown())
                 .collect::<Vec<Value<F>>>()
                 .try_into()
                 .unwrap(),
@@ -68,8 +68,7 @@ mod tests {
 
     use super::PoseidonCircuit;
     use halo2_gadgets::poseidon::{
-        primitives::{self as poseidon, ConstantLength, P128Pow5T3, Spec},
-        Hash,
+        primitives::{self as poseidon, ConstantLength, P128Pow5T3},
     };
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
@@ -87,12 +86,12 @@ mod tests {
         println!("output: {:?}", digest);
 
         let circuit = PoseidonCircuit::<Fp, P128Pow5T3, 3, 2, 3> {
-            hash_input: hash_input.map(|x| Value::known(x)),
+            hash_input: hash_input.map(Value::known),
             digest: Value::known(digest),
             _spec: PhantomData,
         };
         let public_input = vec![digest];
-        let prover = MockProver::run(7, &circuit, vec![public_input.clone()]).unwrap();
+        let prover = MockProver::run(7, &circuit, vec![public_input]).unwrap();
         prover.assert_satisfied();
     }
 

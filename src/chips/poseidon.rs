@@ -69,7 +69,7 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
         );
 
         PoseidonConfig {
-            hash_inputs: state.clone().try_into().unwrap(),
+            hash_inputs: state.try_into().unwrap(),
             instance,
             pow5_config,
         }

@@ -50,7 +50,7 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
         meta.create_gate("bool constraint", |meta| {
             let s = meta.query_selector(bool_selector);
             let c = meta.query_advice(col_c, Rotation::cur());
-            vec![s * c.clone() * (Expression::Constant(F::from(1)) - c.clone())]
+            vec![s * c.clone() * (Expression::Constant(F::from(1)) - c)]
         });
 
         // Enforces that if the swap bit (c) is on, l=b and r=a. Otherwise, l=a and r=b.
@@ -65,8 +65,8 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
             let r = meta.query_advice(col_b, Rotation::next());
             vec![
                 s * (c * Expression::Constant(F::from(2)) * (b.clone() - a.clone())
-                    - (l - a.clone())
-                    - (b.clone() - r)),
+                    - (l - a)
+                    - (b - r)),
             ]
         });
 

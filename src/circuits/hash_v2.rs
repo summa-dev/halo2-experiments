@@ -65,12 +65,12 @@ mod tests {
         let b = Value::known(Fp::from(7));
         let public_inputs = vec![Fp::from(9)];
         let circuit = Hash2Circuit { a, b };
-        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
 
         // failure case
         let public_inputs = vec![Fp::from(8)];
-        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
         assert!(prover.verify().is_err());
     }
 }

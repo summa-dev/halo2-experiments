@@ -44,7 +44,7 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV1Circuit<F> {
         // We create a new instance of chip using the config passed as input
         let chip = MerkleTreeV1Chip::<F>::construct(config);
 
-        let mut leaf_cell = chip.assing_leaf(layouter.namespace(|| "load leaf"), self.leaf)?;
+        let leaf_cell = chip.assing_leaf(layouter.namespace(|| "load leaf"), self.leaf)?;
 
         // Verify that the leaf matches the public input
         chip.expose_public(layouter.namespace(|| "leaf"), &leaf_cell, 0)?;
@@ -102,7 +102,7 @@ mod tests {
         };
 
         let public_input = vec![Fp::from(leaf), Fp::from(digest)];
-        let prover = MockProver::run(10, &circuit, vec![public_input.clone()]).unwrap();
+        let prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
         prover.assert_satisfied();
     }
 }

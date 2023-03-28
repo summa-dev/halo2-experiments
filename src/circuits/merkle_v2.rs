@@ -89,7 +89,7 @@ mod tests {
         };
 
         let public_input = vec![Fp::from(leaf), Fp::from(digest)];
-        let prover = MockProver::run(10, &circuit, vec![public_input.clone()]).unwrap();
+        let prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
         prover.assert_satisfied();
     }
 }
