@@ -46,12 +46,14 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
     // Configuration of the PoseidonChip
     pub fn configure(
         meta: &mut ConstraintSystem<Fp>,
-        state: Vec<Column<Advice>>,
-        partial_sbox: Column<Advice>,
-        rc_a: Vec<Column<Fixed>>,
-        rc_b: Vec<Column<Fixed>>,
         instance: Column<Instance>,
     ) -> PoseidonConfig<WIDTH, RATE, L> {
+
+        let state = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
+        let partial_sbox = meta.advice_column();
+        let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
+        let rc_b = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
+
         for i in 0..WIDTH {
             meta.enable_equality(state[i]);
         }

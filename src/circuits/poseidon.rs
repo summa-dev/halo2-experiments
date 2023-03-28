@@ -37,18 +37,10 @@ impl<
     }
 
     fn configure(meta: &mut ConstraintSystem<Fp>) -> PoseidonConfig<WIDTH, RATE, L> {
-        let state = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
-        let partial_sbox = meta.advice_column();
-        let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
-        let rc_b = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
         let instance = meta.instance_column();
 
         PoseidonChip::<S, WIDTH, RATE, L>::configure(
             meta,
-            state,
-            partial_sbox,
-            rc_a,
-            rc_b,
             instance,
         )
     }
