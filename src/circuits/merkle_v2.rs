@@ -100,7 +100,7 @@ fn print_merkle_tree_2() {
     use halo2_proofs::halo2curves::pasta::Fp;
     use plotters::prelude::*;
 
-    let root = BitMapBackend::new("merkle-tree-2-layout.png", (1024, 3096)).into_drawing_area();
+    let root = BitMapBackend::new("prints/merkle-tree-2-layout.png", (1024, 3096)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let root = root
         .titled("Merkle Tree 2 Layout", ("sans-serif", 60))
