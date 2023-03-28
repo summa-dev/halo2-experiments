@@ -25,13 +25,15 @@ impl MerkleTreeV3Chip {
     pub fn configure(
         meta: &mut ConstraintSystem<Fp>,
         advice: [Column<Advice>; 3],
-        bool_selector: Selector,
-        swap_selector: Selector,
         instance: Column<Instance>,
     ) -> MerkleTreeV3Config {
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
+
+        // create selectors 
+        let bool_selector = meta.selector();
+        let swap_selector = meta.selector();
 
         meta.enable_equality(col_a);
         meta.enable_equality(col_b);
@@ -64,7 +66,9 @@ impl MerkleTreeV3Chip {
         });
 
 
-        let poseidon_config = PoseidonChip::<P128Pow5T3, 3, 2, 2>::configure(meta, instance);
+        let hash_inputs = (0..3).map(|_| meta.advice_column()).collect::<Vec<_>>();
+
+        let poseidon_config = PoseidonChip::<P128Pow5T3, 3, 2, 2>::configure(meta, hash_inputs, instance);
 
         MerkleTreeV3Config {
             advice: [col_a, col_b, col_c],

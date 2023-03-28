@@ -46,30 +46,30 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
     // Configuration of the PoseidonChip
     pub fn configure(
         meta: &mut ConstraintSystem<Fp>,
+        hash_inputs: Vec<Column<Advice>>,
         instance: Column<Instance>,
     ) -> PoseidonConfig<WIDTH, RATE, L> {
 
-        let state = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
         let partial_sbox = meta.advice_column();
         let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
         let rc_b = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
 
         for i in 0..WIDTH {
-            meta.enable_equality(state[i]);
+            meta.enable_equality(hash_inputs[i]);
         }
         meta.enable_equality(instance);
         meta.enable_constant(rc_b[0]);
 
         let pow5_config = Pow5Chip::configure::<S>(
             meta,
-            state.clone().try_into().unwrap(),
+            hash_inputs.clone().try_into().unwrap(),
             partial_sbox,
             rc_a.try_into().unwrap(),
             rc_b.try_into().unwrap(),
         );
 
         PoseidonConfig {
-            hash_inputs: state.try_into().unwrap(),
+            hash_inputs,
             instance,
             pow5_config,
         }

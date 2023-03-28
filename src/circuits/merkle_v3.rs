@@ -23,16 +23,12 @@ impl Circuit<Fp> for MerkleTreeV3Circuit {
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
-        let bool_selector = meta.selector();
-        let swap_selector = meta.selector();
         let instance = meta.instance_column();
 
 
         MerkleTreeV3Chip::configure(
             meta,
             [col_a, col_b, col_c],
-            bool_selector,
-            swap_selector,
             instance,
         )
     }

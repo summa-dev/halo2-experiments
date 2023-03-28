@@ -170,17 +170,20 @@ The advice columns and the instance column are instantiated inside the `configur
 Create a chip that performs a Poseidon hash leveraging the gadget provided by the Halo2 Library.
 Based on this implementation => https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/circuits/poseidon.rs
 
-The PoseidonChip ineriths the configuration of the Pow5Chip, which is a gadget provided by the Halo2 Library. The configuration adds one advice column that takes the input of the hash function and one instance column that takes the expected output of the hash function.
+The PoseidonChip, compared to the Pow5Chip gadget provided by the Halo2Library, adds one advice column that takes the input of the hash function and one instance column that takes the expected output of the hash function.
 
-Similarly to the previous experiment, the PoseidonChip is a the top-level chip of the circuit while the Pow5Chip can be seen as a child chip as you can see from the configuration of the PoseidonChip
+### Configuration
 
-```rust
-pub struct PoseidonConfig<F: FieldExt, const WIDTH: usize, const RATE: usize, const L: usize> {
-    hash_inputs: Vec<Column<Advice>>,
-    instance: Column<Instance>,
-    pow5_config: Pow5Config<F, WIDTH, RATE>,
-}
-```
+The configuration tree looks like this:
+
+- PoseidonChip
+    - Pow5Chip
+
+The PoseidonConfig contains a vector of advice columns, 1 instance column and the Pow5Config.
+
+The vector of advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the PoseidonChip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). Further columns part of the configuration of the `Pow5Chip` are created inside the `configure` function of the PoseidonChip and passed to the configure function of the `Pow5Chip`
+
+The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because these selectors are specific for the MerkleTreeV2Chip and don't need to be shared across other chips. The child chip Hash2Chip is instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because the Hash2Chip is specific for the MerkleTreeV2Chip by passing in the advice columns and the instance column that are shared between the two chips. In this way we can leverage `Hash2Chip` with its gates and its assignment function inside our MerkleTreeV2Chip. 
 
 At proving time:
 
@@ -214,12 +217,21 @@ Test:
 
 # Experiment 8 - Merkle Tree V3
 
-This experiment re-implements the Merkle Tree circuit of experiment 6 using the PoseidonChip created in experiment 7. The Chip tree looks like this:
+This experiment re-implements the Merkle Tree circuit of experiment 6 using the PoseidonChip created in experiment 7. 
+
+### Configuration
+
+The Configuration tree looks like this:
 
 - MerkleTreeV3Chip
     - PoseidonChip
         - Pow5Chip
 
+The MerkleTreeV3 Config contains 3 advice columns, 1 instance column, a boolean selector, a swap selector and the PoseidonConfig.
+
+The 3 advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the MerkleTreeV3Chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV3Chip. That's because these selectors are specific for the MerkleTreeV3Chip and don't need to be shared across other chips. 
+
+The child chip PoseidonChip is instantiated inside the `configure` function of the MerkleTreeV2Chip. In this way we can leverage `PoseidonChip` with its gates and its assignment function inside our MerkleTreeV2Chip. 
 
 TO DO: 
 - [ ] Replace usage of constants in Inclusion Check.

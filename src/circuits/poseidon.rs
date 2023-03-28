@@ -38,9 +38,11 @@ impl<
 
     fn configure(meta: &mut ConstraintSystem<Fp>) -> PoseidonConfig<WIDTH, RATE, L> {
         let instance = meta.instance_column();
+        let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
         PoseidonChip::<S, WIDTH, RATE, L>::configure(
             meta,
+            hash_inputs,
             instance,
         )
     }
