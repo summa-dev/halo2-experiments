@@ -231,7 +231,11 @@ The MerkleTreeV3 Config contains 3 advice columns, 1 instance column, a boolean 
 
 The 3 advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the MerkleTreeV3Chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV3Chip. That's because these selectors are specific for the MerkleTreeV3Chip and don't need to be shared across other chips. 
 
-The child chip PoseidonChip is instantiated inside the `configure` function of the MerkleTreeV2Chip. In this way we can leverage `PoseidonChip` with its gates and its assignment function inside our MerkleTreeV2Chip. 
+The child chip PoseidonChip is instantiated inside the `configure` function of the MerkleTreeV2Chip. In this way we can leverage `PoseidonChip` with its gates and its assignment function inside our MerkleTreeV2Chip.
+
+`cargo test -- --nocapture test_merkle_tree_3`
+`cargo test --all-features -- --nocapture print_merkle_tree_3`
+
 
 TO DO: 
 - [ ] Replace usage of constants in Inclusion Check.

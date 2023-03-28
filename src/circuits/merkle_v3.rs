@@ -1,5 +1,5 @@
 use super::super::chips::merkle_v3::{MerkleTreeV3Chip, MerkleTreeV3Config};
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
 
 #[derive(Default)]
 struct MerkleTreeV3Circuit {
@@ -129,15 +129,15 @@ mod tests {
 
 #[cfg(feature = "dev-graph")]
 #[test]
-fn print_merkle_tree_2() {
+fn print_merkle_tree_3() {
     use halo2_proofs::halo2curves::pasta::Fp;
     use plotters::prelude::*;
 
     let root =
-        BitMapBackend::new("prints/merkle-tree-2-layout.png", (1024, 3096)).into_drawing_area();
+        BitMapBackend::new("prints/merkle-tree-3-layout.png", (1024, 3096)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let root = root
-        .titled("Merkle Tree 2 Layout", ("sans-serif", 60))
+        .titled("Merkle Tree 3 Layout", ("sans-serif", 60))
         .unwrap();
 
     let leaf = 99u64;
@@ -155,13 +155,13 @@ fn print_merkle_tree_2() {
         .map(|x| Value::known(Fp::from(x.to_owned())))
         .collect();
 
-    let circuit = MerkleTreeV2Circuit {
+    let circuit = MerkleTreeV3Circuit {
         leaf: leaf_fp,
         path_elements: elements_fp,
         path_indices: indices_fp,
     };
 
     halo2_proofs::dev::CircuitLayout::default()
-        .render(4, &circuit, &root)
+        .render(8, &circuit, &root)
         .unwrap();
 }

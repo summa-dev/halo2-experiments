@@ -108,7 +108,7 @@ mod tests {
         let digest =
             poseidon::Hash::<_, P128Pow5T3, ConstantLength<3>, 3, 2>::init().hash(hash_input);
 
-        let circuit = PoseidonCircuit::<Fp, P128Pow5T3, 3, 2, 3> {
+        let circuit = PoseidonCircuit::<P128Pow5T3, 3, 2, 3> {
             hash_input: hash_input.map(|x| Value::known(x)),
             digest: Value::known(digest),
             _spec: PhantomData,
