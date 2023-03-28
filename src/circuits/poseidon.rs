@@ -1,6 +1,6 @@
 use super::super::chips::poseidon::{PoseidonChip, PoseidonConfig};
-use halo2_gadgets::poseidon::{primitives::*};
-use halo2_proofs::{circuit::*, plonk::*, arithmetic::FieldExt};
+use halo2_gadgets::poseidon::primitives::*;
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
 use std::marker::PhantomData;
 
 struct PoseidonCircuit<
@@ -15,8 +15,13 @@ struct PoseidonCircuit<
     _spec: PhantomData<S>,
 }
 
-impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize> Circuit<F>
-    for PoseidonCircuit<F, S, WIDTH, RATE, L>
+impl<
+        F: FieldExt,
+        S: Spec<F, WIDTH, RATE>,
+        const WIDTH: usize,
+        const RATE: usize,
+        const L: usize,
+    > Circuit<F> for PoseidonCircuit<F, S, WIDTH, RATE, L>
 {
     type Config = PoseidonConfig<F, WIDTH, RATE, L>;
     type FloorPlanner = SimpleFloorPlanner;
@@ -67,9 +72,7 @@ mod tests {
     use std::marker::PhantomData;
 
     use super::PoseidonCircuit;
-    use halo2_gadgets::poseidon::{
-        primitives::{self as poseidon, ConstantLength, P128Pow5T3},
-    };
+    use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128Pow5T3};
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
     fn test_poseidon() {
@@ -81,7 +84,7 @@ mod tests {
         // compute the hash outside of the circuit
         let digest =
             poseidon::Hash::<_, P128Pow5T3, ConstantLength<3>, 3, 2>::init().hash(hash_input);
-        
+
         // print output
         println!("output: {:?}", digest);
 
@@ -96,16 +99,15 @@ mod tests {
     }
 
     #[cfg(feature = "dev-graph")]
-#[test]
-fn print_poseidon() {
-    use halo2_proofs::halo2curves::pasta::Fp;
-    use plotters::prelude::*;
+    #[test]
+    fn print_poseidon() {
+        use halo2_proofs::halo2curves::pasta::Fp;
+        use plotters::prelude::*;
 
-    let root = BitMapBackend::new("prints/poseidon-layout.png", (1024, 3096)).into_drawing_area();
-    root.fill(&WHITE).unwrap();
-    let root = root
-        .titled("Posiedon Layout", ("sans-serif", 60))
-        .unwrap();
+        let root =
+            BitMapBackend::new("prints/poseidon-layout.png", (1024, 3096)).into_drawing_area();
+        root.fill(&WHITE).unwrap();
+        let root = root.titled("Posiedon Layout", ("sans-serif", 60)).unwrap();
 
         let input = 99u64;
         let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input)];
@@ -119,11 +121,8 @@ fn print_poseidon() {
             _spec: PhantomData,
         };
 
-
-    halo2_proofs::dev::CircuitLayout::default()
-        .render(7, &circuit, &root)
-        .unwrap();
+        halo2_proofs::dev::CircuitLayout::default()
+            .render(7, &circuit, &root)
+            .unwrap();
+    }
 }
-
-}
-

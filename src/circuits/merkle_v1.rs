@@ -113,32 +113,33 @@ fn print_merkle_tree_1() {
     use halo2_proofs::halo2curves::pasta::Fp;
     use plotters::prelude::*;
 
-    let root = BitMapBackend::new("prints/merkle-tree-1-layout.png", (1024, 3096)).into_drawing_area();
+    let root =
+        BitMapBackend::new("prints/merkle-tree-1-layout.png", (1024, 3096)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let root = root
         .titled("Merkle Tree 1 Layout", ("sans-serif", 60))
         .unwrap();
 
-        let leaf = 99u64;
-        let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
-        let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
-        let digest: u64 = leaf + elements.iter().sum::<u64>();
+    let leaf = 99u64;
+    let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
+    let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
+    let digest: u64 = leaf + elements.iter().sum::<u64>();
 
-        let leaf_fp = Value::known(Fp::from(leaf));
-        let elements_fp: Vec<Value<Fp>> = elements
-            .iter()
-            .map(|x| Value::known(Fp::from(x.to_owned())))
-            .collect();
-        let indices_fp: Vec<Value<Fp>> = indices
-            .iter()
-            .map(|x| Value::known(Fp::from(x.to_owned())))
-            .collect();
+    let leaf_fp = Value::known(Fp::from(leaf));
+    let elements_fp: Vec<Value<Fp>> = elements
+        .iter()
+        .map(|x| Value::known(Fp::from(x.to_owned())))
+        .collect();
+    let indices_fp: Vec<Value<Fp>> = indices
+        .iter()
+        .map(|x| Value::known(Fp::from(x.to_owned())))
+        .collect();
 
-        let circuit = MerkleTreeV1Circuit {
-            leaf: leaf_fp,
-            path_elements: elements_fp,
-            path_indices: indices_fp,
-        };
+    let circuit = MerkleTreeV1Circuit {
+        leaf: leaf_fp,
+        path_elements: elements_fp,
+        path_indices: indices_fp,
+    };
 
     halo2_proofs::dev::CircuitLayout::default()
         .render(4, &circuit, &root)

@@ -119,8 +119,18 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
                 // Row 0: | node_cell | Path | Bit |
                 // at tree_level 0, node_cell is the leaf
                 // at next level, node_cell is the digest of the previous level
-                node_cell.copy_advice(|| "prev node_cell copy constraint", &mut region, self.config.advice[0], 0)?;
-                region.assign_advice(|| "assign path element", self.config.advice[1], 0, || path_element)?;
+                node_cell.copy_advice(
+                    || "prev node_cell copy constraint",
+                    &mut region,
+                    self.config.advice[0],
+                    0,
+                )?;
+                region.assign_advice(
+                    || "assign path element",
+                    self.config.advice[1],
+                    0,
+                    || path_element,
+                )?;
                 region.assign_advice(|| "assign bit", self.config.advice[2], 0, || index)?;
 
                 // Row 1: | InputLeft | InputRight | Digest |

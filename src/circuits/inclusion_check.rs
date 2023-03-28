@@ -123,10 +123,11 @@ mod tests {
 #[cfg(feature = "dev-graph")]
 #[test]
 fn print_inclusion_check() {
-    use halo2_proofs::{halo2curves::pasta::Fp};
+    use halo2_proofs::halo2curves::pasta::Fp;
     use plotters::prelude::*;
 
-    let root = BitMapBackend::new("prints/inclusion-check-1-layout.png", (1024, 3096)).into_drawing_area();
+    let root =
+        BitMapBackend::new("prints/inclusion-check-1-layout.png", (1024, 3096)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let root = root
         .titled("Inclusion Check 1 Layout", ("sans-serif", 60))

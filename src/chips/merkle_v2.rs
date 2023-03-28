@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, poly::Rotation};
 use super::hash_v2::{Hash2Chip, Hash2Config};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, poly::Rotation};
+use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
 pub struct MerkleTreeV2Config {
@@ -45,8 +45,8 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
         // Enable equality on the advice column a. This is need to carry digest from one level to the other
         // and perform copy_advice
         meta.enable_equality(col_a);
-        
-        // Enable equality on the advice column b. Need for permutation check when calling hash function 
+
+        // Enable equality on the advice column b. Need for permutation check when calling hash function
         meta.enable_equality(col_b);
 
         // Enforces that c is either a 0 or 1 when the bool selector is enabled
@@ -82,7 +82,7 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
             swap_selector,
             hash_selector,
             instance,
-            hash2_config
+            hash2_config,
         }
     }
 
@@ -112,8 +112,18 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
                 // Row 0
                 self.config.bool_selector.enable(&mut region, 0)?;
                 self.config.swap_selector.enable(&mut region, 0)?;
-                node_cell.copy_advice(|| "copy node cell from previous prove layer", &mut region, self.config.advice[0], 0)?;
-                region.assign_advice(|| "assign element", self.config.advice[1], 0, || path_element)?;
+                node_cell.copy_advice(
+                    || "copy node cell from previous prove layer",
+                    &mut region,
+                    self.config.advice[0],
+                    0,
+                )?;
+                region.assign_advice(
+                    || "assign element",
+                    self.config.advice[1],
+                    0,
+                    || path_element,
+                )?;
                 region.assign_advice(|| "assign index", self.config.advice[2], 0, || index)?;
 
                 // Row 1
@@ -125,8 +135,18 @@ impl<F: FieldExt> MerkleTreeV2Chip<F> {
                 });
 
                 // We need to perform the assignment of the row below in order to perform the swap check
-                let left = region.assign_advice(|| "assign left to be hashed", self.config.advice[0], 1, || l)?;
-                let right = region.assign_advice(|| "assign right to be hashed", self.config.advice[1], 1, || r)?;
+                let left = region.assign_advice(
+                    || "assign left to be hashed",
+                    self.config.advice[0],
+                    1,
+                    || l,
+                )?;
+                let right = region.assign_advice(
+                    || "assign right to be hashed",
+                    self.config.advice[1],
+                    1,
+                    || r,
+                )?;
 
                 Ok((left, right))
             },
