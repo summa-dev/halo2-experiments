@@ -62,6 +62,7 @@ impl<F: FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize
     }
 }
 
+#[cfg(test)]
 mod tests {
     use std::marker::PhantomData;
 

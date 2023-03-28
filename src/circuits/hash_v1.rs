@@ -36,6 +36,7 @@ impl<F: FieldExt> Circuit<F> for Hash1Circuit<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::Hash1Circuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};

@@ -60,6 +60,7 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV2Circuit<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::MerkleTreeV2Circuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};

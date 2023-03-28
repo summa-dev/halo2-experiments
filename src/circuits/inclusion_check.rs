@@ -65,6 +65,7 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
 
     use super::MyCircuit;

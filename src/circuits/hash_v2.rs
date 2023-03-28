@@ -47,6 +47,7 @@ impl<F: FieldExt> Circuit<F> for Hash2Circuit<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::Hash2Circuit;
     use halo2_proofs::{
