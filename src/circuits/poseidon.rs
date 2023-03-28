@@ -59,7 +59,9 @@ impl<
         mut layouter: impl Layouter<Fp>,
     ) -> Result<(), Error> {
         let poseidon_chip = PoseidonChip::<S, WIDTH, RATE, L>::construct(config);
-        let digest = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), self.hash_input)?;
+        let assigned_input_cells = poseidon_chip
+            .load_private_inputs(layouter.namespace(|| "load private inputs"), self.hash_input)?;
+        let digest = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), &assigned_input_cells)?;
         poseidon_chip.expose_public(layouter.namespace(|| "expose result"), &digest, 0)?;
         Ok(())
     }

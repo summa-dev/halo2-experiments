@@ -73,16 +73,12 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         }
     }
 
-    // L is the number of inputs to the hash function
-    // Takes the cells containing the input values of the hash function and return the cell containing the hash output
-    // It uses the pow5_chip to compute the hash
-    pub fn hash(
+    pub fn load_private_inputs(
         &self,
         mut layouter: impl Layouter<Fp>,
         inputs: [Value<Fp>; L],
-    ) -> Result<AssignedCell<Fp, Fp>, Error> {
-        // Assign values to word_cells by copying it from the cells passed as input
-        let hash_input_cells = layouter.assign_region(
+    ) -> Result<[AssignedCell<Fp, Fp>; L], Error> {
+        layouter.assign_region(
             || "load private inputs",
             |mut region| -> Result<[AssignedCell<Fp, Fp>; L], Error> {
                 let result = inputs
@@ -99,7 +95,37 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
                     .collect::<Result<Vec<AssignedCell<Fp, Fp>>, Error>>();
                 Ok(result?.try_into().unwrap())
             },
+        )
+    }
+
+    // L is the number of inputs to the hash function
+    // Takes the cells containing the input values of the hash function and return the cell containing the hash output
+    // It uses the pow5_chip to compute the hash
+    pub fn hash(
+        &self,
+        mut layouter: impl Layouter<Fp>,
+        input_cells: &[AssignedCell<Fp, Fp>; L],
+    ) -> Result<AssignedCell<Fp, Fp>, Error> {
+        // Assign values to word_cells by copying it from the cells passed as input
+        let hash_input_cells = layouter.assign_region(
+            || "copy input cells to hash input cells",
+            |mut region| -> Result<[AssignedCell<Fp, Fp>; L], Error> {
+                let result = input_cells
+                    .iter()
+                    .enumerate()
+                    .map(|(i, input_cell)| {
+                        input_cell.copy_advice(
+                            || format!("word {}", i),
+                            &mut region,
+                            self.config.hash_inputs[i],
+                            0,
+                        )
+                    })
+                    .collect::<Result<Vec<AssignedCell<Fp, Fp>>, Error>>();
+                Ok(result?.try_into().unwrap())
+            },
         )?;
+
 
         let pow5_chip = Pow5Chip::construct(self.config.pow5_config.clone());
 
