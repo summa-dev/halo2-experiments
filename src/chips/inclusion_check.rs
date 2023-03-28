@@ -7,7 +7,7 @@ pub struct InclusionCheckConfig {
     pub advice: [Column<Advice>; 2],
     pub instance: Column<Instance>,
 }
-
+#[derive(Debug, Clone)]
 pub struct InclusionCheckChip<F: FieldExt> {
     config: InclusionCheckConfig,
     _marker: PhantomData<F>,

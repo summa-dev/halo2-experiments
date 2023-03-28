@@ -24,7 +24,6 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
         let col_balance = meta.advice_column();
         let col_username_accumulator = meta.advice_column();
         let col_balance_accumulator = meta.advice_column();
-        let selector = meta.selector();
         let instance = meta.instance_column();
 
         InclusionCheckV2Chip::configure(
@@ -35,7 +34,6 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
                 col_username_accumulator,
                 col_balance_accumulator,
             ],
-            selector,
             instance,
         )
     }

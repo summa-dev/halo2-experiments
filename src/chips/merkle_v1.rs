@@ -10,7 +10,7 @@ pub struct MerkleTreeV1Config {
     pub hash_selector: Selector,
     pub instance: Column<Instance>,
 }
-
+#[derive(Debug, Clone)]
 pub struct MerkleTreeV1Chip<F: FieldExt> {
     config: MerkleTreeV1Config,
     _marker: PhantomData<F>,
@@ -27,14 +27,16 @@ impl<F: FieldExt> MerkleTreeV1Chip<F> {
     pub fn configure(
         meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 3],
-        bool_selector: Selector,
-        swap_selector: Selector,
-        hash_selector: Selector,
         instance: Column<Instance>,
     ) -> MerkleTreeV1Config {
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
+
+        // create selectors
+        let bool_selector = meta.selector();
+        let swap_selector = meta.selector();
+        let hash_selector = meta.selector();
 
         // Enable equality on the advice column c and instance column to enable permutation check
         // between the last hash digest and the root hash passed inside the instance column

@@ -18,10 +18,9 @@ impl<F: FieldExt> Circuit<F> for Hash1Circuit<F> {
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
-        let hash_selector = meta.selector();
         let instance = meta.instance_column();
 
-        Hash1Chip::configure(meta, [col_a, col_b], hash_selector, instance)
+        Hash1Chip::configure(meta, [col_a, col_b], instance)
     }
 
     fn synthesize(

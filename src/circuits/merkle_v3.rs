@@ -1,27 +1,32 @@
-use super::super::chips::merkle_v2::{MerkleTreeV2Chip, MerkleTreeV2Config};
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*};
+use super::super::chips::merkle_v3::{MerkleTreeV3Chip, MerkleTreeV3Config};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, halo2curves::pasta::Fp};
 
 #[derive(Default)]
-struct MerkleTreeV2Circuit<F> {
-    pub leaf: Value<F>,
-    pub path_elements: Vec<Value<F>>,
-    pub path_indices: Vec<Value<F>>,
+struct MerkleTreeV3Circuit {
+    pub leaf: Value<Fp>,
+    pub path_elements: Vec<Value<Fp>>,
+    pub path_indices: Vec<Value<Fp>>,
 }
 
-impl<F: FieldExt> Circuit<F> for MerkleTreeV2Circuit<F> {
-    type Config = MerkleTreeV2Config;
+impl Circuit<Fp> for MerkleTreeV3Circuit {
+
+    type Config = MerkleTreeV3Config;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+
+        // config for the merkle tree chip
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
         let instance = meta.instance_column();
-        MerkleTreeV2Chip::configure(
+
+
+        MerkleTreeV3Chip::configure(
             meta,
             [col_a, col_b, col_c],
             instance,
@@ -31,11 +36,11 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV2Circuit<F> {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<F>,
+        mut layouter: impl Layouter<Fp>,
     ) -> Result<(), Error> {
-        let chip = MerkleTreeV2Chip::construct(config);
+        let chip = MerkleTreeV3Chip::construct(config);
         let leaf_cell = chip.assing_leaf(layouter.namespace(|| "assign leaf"), self.leaf)?;
-        chip.expose_public(layouter.namespace(|| "public leaf"), &leaf_cell, 0);
+        chip.expose_public(layouter.namespace(|| "public leaf"), &leaf_cell, 0)?;
 
         // apply it for level 0 of the merkle tree
         // node cell passed as input is the leaf cell
@@ -63,15 +68,37 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV2Circuit<F> {
 
 #[cfg(test)]
 mod tests {
-    use super::MerkleTreeV2Circuit;
+    use super::MerkleTreeV3Circuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128Pow5T3};
+
+    fn compute_merkle_root(leaf: &u64, elements: &Vec<u64>, indices: &Vec<u64>) -> Fp {
+        let k = elements.len();
+        let mut digest = Fp::from(leaf.clone());
+        let mut message: [Fp; 2];
+        for i in 0..k {
+            if indices[i] == 0 {
+                message = [digest, Fp::from(elements[i])];
+            } else {
+                message = [Fp::from(elements[i]), digest];
+            }
+
+            digest = poseidon::Hash::<_, P128Pow5T3, ConstantLength<2>, 3, 2>::init()
+                .hash(message);
+        }
+        return digest;
+    }
 
     #[test]
-    fn test_merkle_tree_2() {
+    fn test_merkle_tree_3() {
         let leaf = 99u64;
         let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
         let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
-        let digest: u64 = leaf + elements.iter().sum::<u64>();
+
+        // print leaf
+        println!("leaf: {}", leaf);
+
+        let root = compute_merkle_root(&leaf, &elements, &indices);
 
         let leaf_fp = Value::known(Fp::from(leaf));
         let elements_fp: Vec<Value<Fp>> = elements
@@ -83,15 +110,20 @@ mod tests {
             .map(|x| Value::known(Fp::from(x.to_owned())))
             .collect();
 
-        let circuit = MerkleTreeV2Circuit {
+        let circuit = MerkleTreeV3Circuit {
             leaf: leaf_fp,
             path_elements: elements_fp,
             path_indices: indices_fp,
         };
 
-        let public_input = vec![Fp::from(leaf), Fp::from(digest)];
-        let prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
-        prover.assert_satisfied();
+        let correct_public_input = vec![Fp::from(leaf), root];
+        let valid_prover = MockProver::run(10, &circuit, vec![correct_public_input]).unwrap();
+        valid_prover.assert_satisfied();
+
+        let wrong_public_input = vec![Fp::from(leaf), Fp::from(0)];
+        let invalid_prover = MockProver::run(10, &circuit, vec![wrong_public_input]).unwrap();
+        assert!(invalid_prover.verify().is_err());
+
     }
 }
 
