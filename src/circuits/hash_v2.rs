@@ -20,10 +20,9 @@ impl<F: FieldExt> Circuit<F> for Hash2Circuit<F> {
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
-        let hash_selector = meta.selector();
         let instance = meta.instance_column();
 
-        Hash2Chip::configure(meta, [col_a, col_b, col_c], hash_selector, instance)
+        Hash2Chip::configure(meta, [col_a, col_b, col_c], instance)
     }
 
     fn synthesize(

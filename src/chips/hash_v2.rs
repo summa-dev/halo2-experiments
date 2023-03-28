@@ -26,13 +26,14 @@ impl<F: FieldExt> Hash2Chip<F> {
     pub fn configure(
         meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 3],
-        selector: Selector,
         instance: Column<Instance>,
     ) -> Hash2Config {
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
-        let hash_selector = selector;
+        
+        // create check selector 
+        let hash_selector = meta.selector();
 
         // Enable equality on the advice and instance column to enable permutation check
         meta.enable_equality(col_c);

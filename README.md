@@ -83,6 +83,10 @@ The instance column contains the public input of the circuit namely the result o
 
 `cargo test -- --nocapture test_hash_1`
 
+### Configuration
+
+The 2 advice columns and the 1 instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The hash selector is instantiated inside the `configure` function of the chip. That's because this selector is specific for the InclusionCheck chip and doesn't need to be shared across other chips.
+
 # Experiment 4 - Dummy Hash V2
 
 Experiment of a dummy hash from [`halo2-merkle-tree`](https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/chips/hash_2.rs).
@@ -99,6 +103,10 @@ The zk snark verifies that the prover knows `a` and `b` such that the output of 
 `a` and `b` and `c` here are the advice column, namely the private inputs of circuit.
 
 The instance column contains the public input of the circuit namely the result of the hash function that the zk snark should verify.
+
+### Configuration
+
+Same as dummy hash V2.
 
 `cargo test -- --nocapture test_hash_2`
 
