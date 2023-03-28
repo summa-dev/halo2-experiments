@@ -10,7 +10,7 @@ pub struct MerkleTreeV1Config {
     pub hash_selector: Selector,
     pub instance: Column<Instance>,
 }
-
+#[derive(Debug, Clone)]
 pub struct MerkleTreeV1Chip<F: FieldExt> {
     config: MerkleTreeV1Config,
     _marker: PhantomData<F>,

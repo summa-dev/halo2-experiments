@@ -11,7 +11,7 @@ pub struct MerkleTreeV2Config {
     pub instance: Column<Instance>,
     pub hash2_config: Hash2Config,
 }
-
+#[derive(Debug, Clone)]
 pub struct MerkleTreeV2Chip<F: FieldExt> {
     config: MerkleTreeV2Config,
     _marker: PhantomData<F>,

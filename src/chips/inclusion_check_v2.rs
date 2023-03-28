@@ -13,7 +13,7 @@ pub struct InclusionCheckV2Config {
     pub selector: Selector,
     pub instance: Column<Instance>,
 }
-
+#[derive(Debug, Clone)]
 pub struct InclusionCheckV2Chip<F: FieldExt> {
     config: InclusionCheckV2Config,
     _marker: PhantomData<F>,
