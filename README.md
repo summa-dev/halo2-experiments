@@ -15,11 +15,9 @@ List of available experiments:
 - [Experiment 7 - Poseidon Hash](#experiment-7---poseidon-hash)
 - [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
 
-
-
 # Experiment 1 - Inclusion Check
 
-The inclusion check circuit is a circuit built using 2 advice columns, 1 selector column and 1 instance column. The advice columns contain the list of usernames and balances. The instance column contains the username and balance of the user that I am generating the proof for. Let's call it `pubUsername` and `pubBalance` This should be public and the snark should verify that there's a row in the advise column where `pubUsername` and `pubBalance` entries match. At that row the selector should be turned on.
+The inclusion check Chip is a Chip built using 2 advice columns, 1 selector column and 1 instance column. The advice columns contain the list of usernames and balances. The instance column contains the username and balance of the user that I am generating the proof for. Let's call it `pubUsername` and `pubBalance` This should be public and the snark should verify that there's a row in the advise column where `pubUsername` and `pubBalance` entries match. At that row the selector should be turned on.
 
 | username  | balance  |instance  |
 | ----      | ---      |        --- |
@@ -32,7 +30,11 @@ The constraint is enforced as a permutation check between the cell of the advice
 In this example, we don't really need a selector as we are not enforcing any custom gate.
 
 `cargo test -- --nocapture test_inclusion_check_1`
-`cargo test --all-features -- --nocapture print_inclusion_check` 
+`cargo test --all-features -- --nocapture print_inclusion_check`
+
+### Configuration
+
+The 2 advice columns and the 1 instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). 
 
 Q: What is PhantomData?
 
@@ -55,6 +57,10 @@ The constraint is enforced as a permutation check between the cell of the advise
 
 - We need to use the selector to be turned on on the required line to enforce the custom gate
 - The permutation check is enforced between the last row of the `usernameAcc` and `balanceAcc` columns and the instance column values
+
+### Configuration
+
+The 4 advice columns and the 1 instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The selector is instantiated inside the `configure` function of the chip. That's because this selector is specific for the InclusionCheck chip and doesn't need to be shared across other chips.
 
 `cargo test -- --nocapture test_inclusion_check_2`
 
