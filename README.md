@@ -259,7 +259,7 @@ At row 0, we assign the leaf_hash, the left_balance, the element_hash (from `pat
 
 At row 1, we assign the input_left_hash, the input_right_balance, the input_right_hash, the input_right_balance and the digest. At this row we turn on `hash_selector`.
 
-The chip contains 3 custom gates: 
+The chip contains 4 custom gates: 
 
 - If the `bool_selector` is on, checks that the value inside the c column is either 0 or 1
 - If the `swap_selector` is on, checks that the swap on the next row is performed correctly according to the `bit`
@@ -273,19 +273,18 @@ For the other levels of the tree:
 | computed_hash_prev_level    | computed_sum_prev_level | element_hash   |element_balance    | index |   -           |     1        | 1             | 0            | 0
 | input_left_hash  | input_left_balance   |input_right_hash|input_right_balance|computed_hash |  computed_sum |    0         | 0             | 1           | 1
 
-When moving to the next level of the tree, the `computed_hash_prev_level` is copied from the `digest` of the previous level. While the `computed_sum_prev_level` is copied from the `computed_sum` at the previous level.
+When moving to the next level of the tree, the `computed_hash_prev_level` is copied from the `computed_hash` of the previous level. While the `computed_sum_prev_level` is copied from the `computed_sum` at the previous level.
 
 Furthermore, the chip contains three permutation check:
 
 - Verfies that the `leaf_hash` is equal to the `leaf_hash` passed as (public) value to the instance column
 - Verfies that the `leaf_balance` is equal to the `leaf_balance` passed as (public) value to the instance column
-- Verifies that the last `computed_hash` is equal to the `root` of the tree which is passed as (public) value to the instance column
-- Verifies that the last `computed_sum` is equal to the `total_balances` of the tree which is passed as (public) value to the instance column
+- Verifies that the last `computed_hash` is equal to the (expected) `root` of the tree which is passed as (public) value to the instance column
+- Verifies that the last `computed_sum` is equal to the (expected) `balance_sum` of the tree which is passed as (public) value to the instance column
 
 TO DO: 
 - [ ] Replace usage of constants in Inclusion Check.
-- [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
-- [x] Add 2 public inputs to merkle_v1
+- [ ] Check that vectors passed as input to the Merkle Sum Tree are the same length
 
 
 
