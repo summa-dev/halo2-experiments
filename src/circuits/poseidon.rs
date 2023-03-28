@@ -1,8 +1,3 @@
-/*
-An easy-to-use implementation of the Poseidon Hash in the form of a Halo2 Chip. While the Poseidon Hash function
-is already implemented in halo2_gadgets, there is no wrapper chip that makes it easy to use in other circuits.
-*/
-
 use super::super::chips::poseidon::{PoseidonChip, PoseidonConfig};
 use halo2_gadgets::poseidon::{primitives::*};
 use halo2_proofs::{circuit::*, plonk::*, arithmetic::FieldExt};
@@ -96,8 +91,39 @@ mod tests {
             _spec: PhantomData,
         };
         let public_input = vec![digest];
-        let prover = MockProver::run(10, &circuit, vec![public_input.clone()]).unwrap();
+        let prover = MockProver::run(7, &circuit, vec![public_input.clone()]).unwrap();
         prover.assert_satisfied();
     }
 
+    #[cfg(feature = "dev-graph")]
+#[test]
+fn print_poseidon() {
+    use halo2_proofs::halo2curves::pasta::Fp;
+    use plotters::prelude::*;
+
+    let root = BitMapBackend::new("prints/poseidon-layout.png", (1024, 3096)).into_drawing_area();
+    root.fill(&WHITE).unwrap();
+    let root = root
+        .titled("Posiedon Layout", ("sans-serif", 60))
+        .unwrap();
+
+        let input = 99u64;
+        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input)];
+
+        let digest =
+            poseidon::Hash::<_, P128Pow5T3, ConstantLength<3>, 3, 2>::init().hash(hash_input);
+
+        let circuit = PoseidonCircuit::<Fp, P128Pow5T3, 3, 2, 3> {
+            hash_input: hash_input.map(|x| Value::known(x)),
+            digest: Value::known(digest),
+            _spec: PhantomData,
+        };
+
+
+    halo2_proofs::dev::CircuitLayout::default()
+        .render(7, &circuit, &root)
+        .unwrap();
 }
+
+}
+
