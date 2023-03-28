@@ -12,6 +12,9 @@ List of available experiments:
 - [Experiment 4 - Dummy Hash V2](#experiment-4---dummy-hash-v2)
 - [Experiment 5 - Merkle Tree V1](#experiment-5---merkle-tree-v1)
 - [Experiment 6 - Merkle Tree V2](#experiment-6---merkle-tree-v2)
+- [Experiment 7 - Poseidon Hash](#experiment-7---poseidon-hash)
+- [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
+
 
 
 # Experiment 1 - Inclusion Check
@@ -217,7 +220,7 @@ At proving time:
 
 In particular we can see that the poseidon hash is instantiated using different parameters such as P128Pow5T3, ConstantLength<3>, 3, 2 (when performing the hash), and P128Pow5T3, 3, 2, 3 when instantiating the circuit. These values represent poseidon specific parameters such as the number of rounds to be performed.  The only thing that we should care about in our APIs is `ConstantLength<n>` and the [parameter L in the PoseidonCircuit struct](https://github.com/summa-dev/halo2-experiments/blob/poseidon-hash/src/circuits/poseidon.rs#L16). This represent the number of inputs of the hash function and can be modified by the developer.
 
-- All the columns (`hash_inputs`, `instance` and all the columns to be passed to the `pow5_config`) are created in the [`configure` function of the PoseidonCircuit](https://github.com/summa-dev/halo2-experiments/blob/poseidon-hash/src/circuits/poseidon.rs#L41). This function returns the PoseidonConfig instantiation. 
+- The columns (`hash_inputs`, `instance`) are created in the [`configure` function of the PoseidonCircuit](https://github.com/summa-dev/halo2-experiments/blob/poseidon-hash/src/circuits/poseidon.rs#L41). All the other columns (the columns to be passed to the `pow5_config`) are created in the `configure` function of the Poseidon Chip. This function returns the PoseidonConfig instantiation. 
 
 - The instantiation of the PoseidonConfig is passed to the `syntesize` function of the PoseidonCircuit. This function will pass the input values for the witness generation to the chip that will take care of assigning the values to the columns and verifying the constraints.
 
@@ -225,6 +228,14 @@ Test:
 
 `cargo test -- --nocapture test_poseidon`
 `cargo test --all-features -- --nocapture print_poseidon`
+
+# Experiment 8 - Merkle Tree V3
+
+This experiment re-implements the Merkle Tree circuit of experiment 6 using the PoseidonChip created in experiment 7. The Chip tree looks like this:
+
+- MerkleTreeV3Chip
+    - PoseidonChip
+        - Pow5Chip
 
 
 TO DO: 
