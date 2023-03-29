@@ -1,5 +1,5 @@
-use halo2_proofs::{halo2curves::pasta::Fp, arithmetic::Field};
 use halo2_gadgets::poseidon::primitives::*;
+use halo2_proofs::{arithmetic::Field, halo2curves::pasta::Fp};
 
 // P128Pow5T3 is the default Spec provided by the Halo2 Gadget => https://github.com/privacy-scaling-explorations/halo2/blob/main/halo2_gadgets/src/poseidon/primitives/p128pow5t3.rs#L13
 // This spec hardcodes the WIDTH and RATE parameters of the hash function to 3 and 2 respectively

@@ -1,6 +1,6 @@
 use super::super::chips::poseidon::hash::{PoseidonChip, PoseidonConfig};
 use halo2_gadgets::poseidon::primitives::*;
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
 use std::marker::PhantomData;
 
 struct PoseidonCircuit<
@@ -14,12 +14,8 @@ struct PoseidonCircuit<
     _spec: PhantomData<S>,
 }
 
-impl<
-        S: Spec<Fp, WIDTH, RATE>,
-        const WIDTH: usize,
-        const RATE: usize,
-        const L: usize,
-    > Circuit<Fp> for PoseidonCircuit<S, WIDTH, RATE, L>
+impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize> Circuit<Fp>
+    for PoseidonCircuit<S, WIDTH, RATE, L>
 {
     type Config = PoseidonConfig<WIDTH, RATE, L>;
     type FloorPlanner = SimpleFloorPlanner;
@@ -40,11 +36,7 @@ impl<
         let instance = meta.instance_column();
         let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
-        PoseidonChip::<S, WIDTH, RATE, L>::configure(
-            meta,
-            hash_inputs,
-            instance,
-        )
+        PoseidonChip::<S, WIDTH, RATE, L>::configure(meta, hash_inputs, instance)
     }
 
     fn synthesize(
@@ -53,9 +45,14 @@ impl<
         mut layouter: impl Layouter<Fp>,
     ) -> Result<(), Error> {
         let poseidon_chip = PoseidonChip::<S, WIDTH, RATE, L>::construct(config);
-        let assigned_input_cells = poseidon_chip
-            .load_private_inputs(layouter.namespace(|| "load private inputs"), self.hash_input)?;
-        let digest = poseidon_chip.hash(layouter.namespace(|| "poseidon chip"), &assigned_input_cells)?;
+        let assigned_input_cells = poseidon_chip.load_private_inputs(
+            layouter.namespace(|| "load private inputs"),
+            self.hash_input,
+        )?;
+        let digest = poseidon_chip.hash(
+            layouter.namespace(|| "poseidon chip"),
+            &assigned_input_cells,
+        )?;
         poseidon_chip.expose_public(layouter.namespace(|| "expose result"), &digest, 0)?;
         Ok(())
     }
@@ -63,15 +60,20 @@ impl<
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
+    use super::super::super::chips::poseidon::spec::MySpec;
     use super::PoseidonCircuit;
     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength};
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
-    use super::super::super::chips::poseidon::spec::MySpec;
+    use std::marker::PhantomData;
     #[test]
     fn test_poseidon() {
         let input = 99u64;
-        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input), Fp::from(input)];
+        let hash_input = [
+            Fp::from(input),
+            Fp::from(input),
+            Fp::from(input),
+            Fp::from(input),
+        ];
 
         const WIDTH: usize = 5;
         const RATE: usize = 4;
@@ -83,9 +85,10 @@ mod tests {
 
         // compute the hash outside of the circuit
         let digest =
-            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init().hash(hash_input);
+            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
+                .hash(hash_input);
 
-        let circuit = PoseidonCircuit::<MySpec<WIDTH,RATE>, WIDTH, RATE, L> {
+        let circuit = PoseidonCircuit::<MySpec<WIDTH, RATE>, WIDTH, RATE, L> {
             hash_input: hash_input.map(Value::known),
             digest: Value::known(digest),
             _spec: PhantomData,
@@ -108,14 +111,20 @@ mod tests {
         let root = root.titled("Posiedon Layout", ("sans-serif", 60)).unwrap();
 
         let input = 99u64;
-        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input), Fp::from(input)];
+        let hash_input = [
+            Fp::from(input),
+            Fp::from(input),
+            Fp::from(input),
+            Fp::from(input),
+        ];
 
         const WIDTH: usize = 5;
         const RATE: usize = 4;
         const L: usize = 4;
 
         let digest =
-            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init().hash(hash_input);
+            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
+                .hash(hash_input);
 
         let circuit = PoseidonCircuit::<MySpec<WIDTH, RATE>, WIDTH, RATE, L> {
             hash_input: hash_input.map(|x| Value::known(x)),
@@ -128,4 +137,3 @@ mod tests {
             .unwrap();
     }
 }
-

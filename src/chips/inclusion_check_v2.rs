@@ -37,7 +37,7 @@ impl<F: FieldExt> InclusionCheckV2Chip<F> {
         let username_accumulator_column = advice[2];
         let balance_accumulator_column = advice[3];
 
-        // create check selector 
+        // create check selector
         let selector = meta.selector();
 
         // Enable equality on the username_accumulator_column and balance_accumulator_column to enable permutation check

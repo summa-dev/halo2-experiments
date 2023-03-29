@@ -1,6 +1,6 @@
 use super::poseidon::hash::{PoseidonChip, PoseidonConfig};
-use halo2_proofs::{circuit::*, plonk::*, poly::Rotation, halo2curves::pasta::Fp};
 use halo2_gadgets::poseidon::primitives::P128Pow5T3;
+use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
 
 const WIDTH: usize = 3;
 const RATE: usize = 2;
@@ -16,14 +16,12 @@ pub struct MerkleTreeV3Config {
 }
 #[derive(Debug, Clone)]
 pub struct MerkleTreeV3Chip {
-    config: MerkleTreeV3Config
+    config: MerkleTreeV3Config,
 }
 
 impl MerkleTreeV3Chip {
     pub fn construct(config: MerkleTreeV3Config) -> Self {
-        Self {
-            config
-        }
+        Self { config }
     }
 
     pub fn configure(
@@ -35,7 +33,7 @@ impl MerkleTreeV3Chip {
         let col_b = advice[1];
         let col_c = advice[2];
 
-        // create selectors 
+        // create selectors
         let bool_selector = meta.selector();
         let swap_selector = meta.selector();
 
@@ -69,17 +67,17 @@ impl MerkleTreeV3Chip {
             ]
         });
 
-
         let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
-        let poseidon_config = PoseidonChip::<P128Pow5T3, WIDTH, RATE, L>::configure(meta, hash_inputs, instance);
+        let poseidon_config =
+            PoseidonChip::<P128Pow5T3, WIDTH, RATE, L>::configure(meta, hash_inputs, instance);
 
         MerkleTreeV3Config {
             advice: [col_a, col_b, col_c],
             bool_selector,
             swap_selector,
             instance,
-            poseidon_config
+            poseidon_config,
         }
     }
 
@@ -121,12 +119,7 @@ impl MerkleTreeV3Chip {
                     0,
                     || path_element,
                 )?;
-                region.assign_advice(|| 
-                    "assign index", 
-                    self.config.advice[2], 
-                    0, 
-                    || index
-                )?;
+                region.assign_advice(|| "assign index", self.config.advice[2], 0, || index)?;
 
                 // Row 1
                 // Here we just perform the assignment - no hashing is performed here!
@@ -155,13 +148,16 @@ impl MerkleTreeV3Chip {
         )?;
 
         // instantiate the poseidon_chip
-        let poseidon_chip = PoseidonChip::<P128Pow5T3, WIDTH, RATE, L>::construct(self.config.poseidon_config.clone());
+        let poseidon_chip = PoseidonChip::<P128Pow5T3, WIDTH, RATE, L>::construct(
+            self.config.poseidon_config.clone(),
+        );
 
         // The hash function inside the poseidon_chip performs the following action
         // 1. Copy the left and right cells from the previous row
         // 2. Perform the hash function and assign the digest to the current row
         // 3. Constrain the digest to be equal to the hash of the left and right values
-        let digest = poseidon_chip.hash(layouter.namespace(|| "hash row constaint"), &[left, right])?;
+        let digest =
+            poseidon_chip.hash(layouter.namespace(|| "hash row constaint"), &[left, right])?;
         Ok(digest)
     }
 

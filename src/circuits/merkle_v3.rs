@@ -1,5 +1,5 @@
 use super::super::chips::merkle_v3::{MerkleTreeV3Chip, MerkleTreeV3Config};
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
 
 #[derive(Default)]
 struct MerkleTreeV3Circuit {
@@ -9,7 +9,6 @@ struct MerkleTreeV3Circuit {
 }
 
 impl Circuit<Fp> for MerkleTreeV3Circuit {
-
     type Config = MerkleTreeV3Config;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -18,19 +17,13 @@ impl Circuit<Fp> for MerkleTreeV3Circuit {
     }
 
     fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
-
         // config for the merkle tree chip
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
         let instance = meta.instance_column();
 
-
-        MerkleTreeV3Chip::configure(
-            meta,
-            [col_a, col_b, col_c],
-            instance,
-        )
+        MerkleTreeV3Chip::configure(meta, [col_a, col_b, col_c], instance)
     }
 
     fn synthesize(
@@ -69,8 +62,8 @@ impl Circuit<Fp> for MerkleTreeV3Circuit {
 #[cfg(test)]
 mod tests {
     use super::MerkleTreeV3Circuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128Pow5T3};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
 
     const WIDTH: usize = 3;
     const RATE: usize = 2;
@@ -124,7 +117,6 @@ mod tests {
         let wrong_public_input = vec![Fp::from(leaf), Fp::from(0)];
         let invalid_prover = MockProver::run(10, &circuit, vec![wrong_public_input]).unwrap();
         assert!(invalid_prover.verify().is_err());
-
     }
 }
 

@@ -7,7 +7,7 @@ is already implemented in halo2_gadgets, there is no wrapper chip that makes it 
 // Furthermore it adds an instance column to store the public expected output of the hash
 
 use halo2_gadgets::poseidon::{primitives::*, Hash, Pow5Chip, Pow5Config};
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,7 @@ pub struct PoseidonChip<
     _marker: PhantomData<S>,
 }
 
-impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize> 
+impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize>
     PoseidonChip<S, WIDTH, RATE, L>
 {
     pub fn construct(config: PoseidonConfig<WIDTH, RATE, L>) -> Self {
@@ -49,7 +49,6 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         hash_inputs: Vec<Column<Advice>>,
         instance: Column<Instance>,
     ) -> PoseidonConfig<WIDTH, RATE, L> {
-
         let partial_sbox = meta.advice_column();
         let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
         let rc_b = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
@@ -128,7 +127,6 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
             },
         )?;
 
-
         let pow5_chip = Pow5Chip::construct(self.config.pow5_config.clone());
 
         // initialize the hasher
@@ -148,7 +146,3 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         layouter.constrain_instance(cell.cell(), self.config.instance, row)
     }
 }
-
-
-
-
