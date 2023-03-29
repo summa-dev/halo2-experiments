@@ -7,7 +7,7 @@ is already implemented in halo2_gadgets, there is no wrapper chip that makes it 
 // Furthermore it adds an instance column to store the public expected output of the hash
 
 use halo2_gadgets::poseidon::{primitives::*, Hash, Pow5Chip, Pow5Config};
-use halo2_proofs::{arithmetic::Field, circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]

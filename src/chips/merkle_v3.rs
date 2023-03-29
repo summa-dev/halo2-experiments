@@ -1,4 +1,4 @@
-use super::poseidon::{PoseidonChip, PoseidonConfig};
+use super::poseidon::hash::{PoseidonChip, PoseidonConfig};
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation, halo2curves::pasta::Fp};
 use halo2_gadgets::poseidon::primitives::P128Pow5T3;
 
