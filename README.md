@@ -242,7 +242,29 @@ TO DO:
 - [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
 - [x] Add 2 public inputs to merkle_v1
 
+# Experiment 9 - Add carry
 
+Allowing the addition of new values to previously accumulated amounts which consist of multi-columns
 
+Circuit looks like this
 
+| - | value  | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
+| - | ----      | ---      |   ---      | --| 
+| 0 | - | 0x1 |  0xffff | 0x1 |
+| 1 | 0x2 | 0x2 |  0x1 | 0xffff |  
+| 2 | - | - | - | 0x2 |
+| 3 | - | - | - | 0x1 |
+
+Should satisfy
+
+```Rust
+// following above table
+0 = (value + (acc_hi[0] * (1 << 16)) + acc_lo[0]) 
+    - ((acc_hi[1] * (1 << 16)) + acc_lo[1] )
+
+```
+
+TO DO: 
+- [ ] Range check for left most column of multi-columns for accumulation
+- [ ] Support 2^256 in Accumulated value with multi-columns
 
