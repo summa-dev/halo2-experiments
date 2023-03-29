@@ -74,10 +74,9 @@ impl MerkleSumTreeChip {
             let r2 = meta.query_advice(col_d, Rotation::next());
 
             vec![
-                s.clone()
-                    * (e.clone() * Expression::Constant(Fp::from(2)) * (c.clone() - a.clone())
-                        - (l1 - a)
-                        - (c - r1)),
+                s.clone() * (e.clone() * Expression::Constant(Fp::from(2)) * (c.clone() - a.clone())
+                    - (l1 - a)
+                    - (c - r1)),
                 s * (e * Expression::Constant(Fp::from(2)) * (d.clone() - b.clone())
                     - (l2 - b)
                     - (d - r2)),
@@ -228,10 +227,9 @@ impl MerkleSumTreeChip {
                         || r2,
                     )?;
 
-                    // Now we can assign the sum result, which is to be assigned
-                    // into the computed_sum cell.
                     let computed_sum = r1 + r2;
 
+                    // Now we can assign the sum result to the computed_sum cell.
                     // TO DO: is it constrained correctly?
                     let computed_sum_cell = region.assign_advice(
                         || "assign sum of left and right balance",
@@ -263,7 +261,6 @@ impl MerkleSumTreeChip {
             layouter.namespace(|| "hash two child nodes"),
             &[left_hash, left_balance, right_hash, right_balance],
         )?;
-        // TO DO: check whether it works correctly
 
         Ok((computed_hash, computed_sum_cell))
     }
