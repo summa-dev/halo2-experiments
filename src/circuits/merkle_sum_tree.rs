@@ -79,66 +79,109 @@ impl Circuit<Fp> for MerkleSumTreeCircuit {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::MerkleTreeV3Circuit;
-//     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
-//     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128Pow5T3};
+#[cfg(test)]
+mod tests {
+    use super::MerkleSumTreeCircuit;
+    use super::super::super::chips::poseidon::spec::MySpec;
+    use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
 
-//     fn compute_merkle_root(leaf: &u64, elements: &Vec<u64>, indices: &Vec<u64>) -> Fp {
-//         let k = elements.len();
-//         let mut digest = Fp::from(leaf.clone());
-//         let mut message: [Fp; 2];
-//         for i in 0..k {
-//             if indices[i] == 0 {
-//                 message = [digest, Fp::from(elements[i])];
-//             } else {
-//                 message = [Fp::from(elements[i]), digest];
-//             }
+    const WIDTH: usize = 5;
+    const RATE: usize = 4;
+    const L: usize = 4;
 
-//             digest = poseidon::Hash::<_, P128Pow5T3, ConstantLength<2>, 3, 2>::init()
-//                 .hash(message);
-//         }
-//         return digest;
-//     }
+    #[derive(Debug, Clone)]
+    struct Node {
+        hash: Fp,
+        balance: Fp,
+    }
 
-//     #[test]
-//     fn test_merkle_tree_3() {
-//         let leaf = 99u64;
-//         let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
-//         let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
+    fn compute_merkle_root(node: &Node,  elements: &Vec<Node>, indices: &Vec<u64>) -> Node {
+        let k = elements.len();
+        let mut digest = node.clone();
+        let mut message: [Fp; 4];
+        for i in 0..k {
+            if indices[i] == 0 {
+                message = [digest.hash, digest.balance, elements[i].hash, elements[i].balance];
+            } else {
+                message = [elements[i].hash, elements[i].balance, digest.hash, digest.balance];
+            }
 
-//         // print leaf
-//         println!("leaf: {}", leaf);
+            digest.hash = poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
+                .hash(message);
 
-//         let root = compute_merkle_root(&leaf, &elements, &indices);
+            digest.balance = digest.balance + elements[i].balance;
 
-//         let leaf_fp = Value::known(Fp::from(leaf));
-//         let elements_fp: Vec<Value<Fp>> = elements
-//             .iter()
-//             .map(|x| Value::known(Fp::from(x.to_owned())))
-//             .collect();
-//         let indices_fp: Vec<Value<Fp>> = indices
-//             .iter()
-//             .map(|x| Value::known(Fp::from(x.to_owned())))
-//             .collect();
+        }
+        digest
+    }
 
-//         let circuit = MerkleTreeV3Circuit {
-//             leaf: leaf_fp,
-//             path_elements: elements_fp,
-//             path_indices: indices_fp,
-//         };
+    #[test]
+    fn test_merkle_sum_tree() {
+        let leaf = Node {
+            hash: Fp::from(10u64),
+            balance: Fp::from(100u64),
+        };
 
-//         let correct_public_input = vec![Fp::from(leaf), root];
-//         let valid_prover = MockProver::run(10, &circuit, vec![correct_public_input]).unwrap();
-//         valid_prover.assert_satisfied();
+        let elements = vec![
+            Node {
+                hash: Fp::from(1u64),
+                balance: Fp::from(10u64),
+            },
+            Node {
+                hash: Fp::from(5u64),
+                balance: Fp::from(50u64),
+            },
+            Node {
+                hash: Fp::from(6u64),
+                balance: Fp::from(60u64),
+            },
+            Node {
+                hash: Fp::from(9u64),
+                balance: Fp::from(90u64),
+            },
+            Node {
+                hash: Fp::from(9u64),
+                balance: Fp::from(90u64),
+            },
+        ];
 
-//         let wrong_public_input = vec![Fp::from(leaf), Fp::from(0)];
-//         let invalid_prover = MockProver::run(10, &circuit, vec![wrong_public_input]).unwrap();
-//         assert!(invalid_prover.verify().is_err());
+        let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
 
-//     }
-// }
+        let root = compute_merkle_root(&leaf, &elements, &indices);
+
+        let element_hashes: Vec<Value<Fp>> = elements
+            .iter()
+            .map(|x| Value::known(x.hash))
+            .collect();
+
+        let element_balances: Vec<Value<Fp>> = elements
+            .iter()
+            .map(|x| Value::known(x.balance))
+            .collect();
+
+        let indices_fp: Vec<Value<Fp>> = indices
+            .iter()
+            .map(|x| Value::known(Fp::from(x.to_owned())))
+            .collect();
+
+        let circuit = MerkleSumTreeCircuit {
+            leaf_hash: Value::known(leaf.hash),
+            leaf_balance: Value::known(leaf.balance),
+            path_element_hashes: element_hashes,
+            path_element_balances: element_balances,
+            path_indices: indices_fp,
+        };
+
+        let correct_public_input = vec![leaf.hash, leaf.balance, root.hash, Fp::from(400u64)];
+        let valid_prover = MockProver::run(10, &circuit, vec![correct_public_input]).unwrap();
+        valid_prover.assert_satisfied();
+
+        let wrong_public_input = vec![leaf.hash, leaf.balance, root.hash, Fp::from(0)];
+        let invalid_prover = MockProver::run(10, &circuit, vec![wrong_public_input]).unwrap();
+        assert!(invalid_prover.verify().is_err());
+    }
+}
 
 // #[cfg(feature = "dev-graph")]
 // #[test]

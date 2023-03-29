@@ -305,6 +305,8 @@ TO DO:
 - [ ] Replace usage of constants in Inclusion Check.
 - [ ] Check that vectors passed as input to the Merkle Sum Tree are the same length
 - [ ] Check the security of the Poseidon Hash
+- [ ] Create simiplified type for assigned cells
+
 
 
 

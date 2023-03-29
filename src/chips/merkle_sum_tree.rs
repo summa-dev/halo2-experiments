@@ -41,19 +41,25 @@ impl MerkleSumTreeChip {
         let swap_selector = meta.selector();
         let sum_selector = meta.selector();
 
-        meta.enable_equality(col_a); // enable equality for leaf_hash copy constraint with instance column
-        meta.enable_equality(col_b); // enable equality for balance_hash copy constraint with instance column
+        // enable equality for leaf_hash copy constraint with instance column (col_a)
+        // enable equality for balance_hash copy constraint with instance column (col_b)
+        // enable equality for copying left_hash, left_balance, right_hash, right_balance into poseidon_chip (col_a, col_b, col_c, col_d)
+        meta.enable_equality(col_a);
+        meta.enable_equality(col_b);
+        meta.enable_equality(col_c); 
+        meta.enable_equality(col_d);
+
 
         meta.enable_equality(col_e); // enable equality for computed_sum copy constraint across regions and for copy constraint with instance column
 
         meta.enable_equality(instance);
 
-        // Enforces that c is either a 0 or 1 when the bool selector is enabled
-        // s * c * (1 - c) = 0
+        // Enforces that e is either a 0 or 1 when the bool selector is enabled
+        // s * e * (1 - e) = 0
         meta.create_gate("bool constraint", |meta| {
             let s = meta.query_selector(bool_selector);
-            let c = meta.query_advice(col_c, Rotation::cur());
-            vec![s * c.clone() * (Expression::Constant(Fp::from(1)) - c)]
+            let e = meta.query_advice(col_e, Rotation::cur());
+            vec![s * e.clone() * (Expression::Constant(Fp::from(1)) - e)]
         });
 
         // Enforces that if the swap bit (e) is on, l1=c, l2=d, r1=a, and r2=b. Otherwise, l1=a, l2=b, r1=c, and r2=d.
@@ -231,7 +237,7 @@ impl MerkleSumTreeChip {
                         || r2,
                     )?;
 
-                    let computed_sum = r1 + r2;
+                    let computed_sum = left_balance.value().zip(right_balance.value()).map(|(a, b)| a + b);
 
                     // Now we can assign the sum result to the computed_sum cell.
                     // TO DO: is it constrained correctly?
