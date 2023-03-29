@@ -187,6 +187,8 @@ The vector of advice columns and the instance column are instantiated inside the
 
 That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). Further columns part of the configuration of the `Pow5Chip` are created inside the `configure` function of the PoseidonChip and passed to the configure function of the `Pow5Chip`.
 
+## Functioning Logic
+
 At proving time:
 
 - We instatiate the PoseidonCircuit with the input of the hash function and the expected output of the hash function
@@ -236,6 +238,21 @@ The MerkleTreeV3 Config contains 3 advice columns, 1 instance column, a boolean 
 The 3 advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the MerkleTreeV3Chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV3Chip. That's because these selectors are specific for the MerkleTreeV3Chip and don't need to be shared across other chips. 
 
 The child chip PoseidonChip is instantiated inside the `configure` function of the MerkleTreeV2Chip. In this way we can leverage `PoseidonChip` with its gates and its assignment function inside our MerkleTreeV2Chip.
+
+## Functioning Logic
+
+At proving time:
+
+- We instatiate the MerkleTreeV3 Circuit with the leaf, the path_elements and the path_indices
+
+- The 3 advice columns and the instance column are created in the `configure` function of the MerkleTreeV3 Circuit. All the other columns (`hash_inputs`, namely the columns to be passed to the `poseidon config`) are created in the `configure` function of the MerkleTreeV3 Chip. This function returns a MerkleTreeV3Config instance. 
+
+- The instantiation of the PoseidonConfig is passed to the `syntesize` function of the PoseidonCircuit. This function will pass the input values for the witness generation to the chip that will take care of assigning the values to the columns and verifying the constraints. In particular, it will:
+
+    - call `assign leaf` on the merkle tree chip to leaf value inside a cell in the advice column `a`. This function will return the assigned cells.
+    - call the `expose_public` function on the merkle tree chip by passing in the assigned cell output of the `assign leaf` function. This function will constrain it to be equal to the expected leaf hash passed into the public instance column.
+    - call the `merkle_prover_layer` function on the chip for each level of the merkle tree. 
+    - call the `expose_public` function by passing in the last output of the `merkle_prove_layer` function. This function will constrain it to be equal to the expected root passed into the public instance column.
 
 `cargo test -- --nocapture test_merkle_tree_3`
 `cargo test --all-features -- --nocapture print_merkle_tree_3`

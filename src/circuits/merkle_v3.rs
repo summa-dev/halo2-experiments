@@ -72,6 +72,10 @@ mod tests {
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128Pow5T3};
 
+    const WIDTH: usize = 3;
+    const RATE: usize = 2;
+    const L: usize = 2;
+
     fn compute_merkle_root(leaf: &u64, elements: &Vec<u64>, indices: &Vec<u64>) -> Fp {
         let k = elements.len();
         let mut digest = Fp::from(leaf.clone());
@@ -83,7 +87,7 @@ mod tests {
                 message = [Fp::from(elements[i]), digest];
             }
 
-            digest = poseidon::Hash::<_, P128Pow5T3, ConstantLength<2>, 3, 2>::init()
+            digest = poseidon::Hash::<_, P128Pow5T3, ConstantLength<L>, WIDTH, RATE>::init()
                 .hash(message);
         }
         return digest;
@@ -94,9 +98,6 @@ mod tests {
         let leaf = 99u64;
         let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
         let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
-
-        // print leaf
-        println!("leaf: {}", leaf);
 
         let root = compute_merkle_root(&leaf, &elements, &indices);
 

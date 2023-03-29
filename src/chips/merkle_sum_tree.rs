@@ -1,6 +1,10 @@
-use super::poseidon::{PoseidonChip, PoseidonConfig};
+use super::poseidon::hash::{PoseidonChip, PoseidonConfig};
+use super::poseidon::spec::MySpec;
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation, halo2curves::pasta::Fp};
-use halo2_gadgets::poseidon::primitives::P128Pow5T3;
+
+const WIDTH: usize = 5;
+const RATE: usize = 4;
+const L: usize = 4;
 
 #[derive(Debug, Clone)]
 pub struct MerkleSumTreeConfig {
@@ -9,7 +13,7 @@ pub struct MerkleSumTreeConfig {
     pub swap_selector: Selector,
     pub sum_selector: Selector,
     pub instance: Column<Instance>,
-    pub poseidon_config: PoseidonConfig<3, 2, 4>,
+    pub poseidon_config: PoseidonConfig<WIDTH, RATE, L>,
 }
 #[derive(Debug, Clone)]
 pub struct MerkleSumTreeChip {
@@ -56,21 +60,24 @@ impl MerkleSumTreeChip {
             vec![s * c.clone() * (Expression::Constant(Fp::from(1)) - c)]
         });
 
-        // TO DO: Modify swap constraint to work with 4 inputs. Similar to circom mux4.
-        // Enforces that if the swap bit (c) is on, l=b and r=a. Otherwise, l=a and r=b.
-        // s * (c * 2 * (b - a) - (l - a) - (b - r)) = 0
+        // Enforces that if the swap bit (e) is on, l1=c, l2=d, r1=a, and r2=b. Otherwise, l1=a, l2=b, r1=c, and r2=d.
         // This applies only when the swap selector is enabled
+        // TO DO: Check if this works correctly
         meta.create_gate("swap constraint", |meta| {
             let s = meta.query_selector(swap_selector);
             let a = meta.query_advice(col_a, Rotation::cur());
             let b = meta.query_advice(col_b, Rotation::cur());
             let c = meta.query_advice(col_c, Rotation::cur());
-            let l = meta.query_advice(col_a, Rotation::next());
-            let r = meta.query_advice(col_b, Rotation::next());
+            let d = meta.query_advice(col_d, Rotation::cur());
+            let e = meta.query_advice(col_e, Rotation::cur());
+            let l1 = meta.query_advice(col_a, Rotation::next());
+            let l2 = meta.query_advice(col_b, Rotation::next());
+            let r1 = meta.query_advice(col_c, Rotation::next());
+            let r2 = meta.query_advice(col_d, Rotation::next());
+            
             vec![
-                s * (c * Expression::Constant(Fp::from(2)) * (b.clone() - a.clone())
-                    - (l - a)
-                    - (b - r)),
+                s.clone() * (e.clone() * Expression::Constant(Fp::from(2)) * (c.clone() - a.clone()) - (l1 - a) - (c - r1)),
+                s * (e * Expression::Constant(Fp::from(2)) * (d.clone() - b.clone()) - (l2 - b) - (d - r2)),
             ]
         });
 
@@ -84,10 +91,10 @@ impl MerkleSumTreeChip {
         });
 
         // TO DO: Understand if this is intantiated correctly
-        let hash_inputs = (0..3).map(|_| meta.advice_column()).collect::<Vec<_>>();
+        let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
         // TO DO: Understand the role of the instance in the poseidon_config
-        let poseidon_config = PoseidonChip::<P128Pow5T3, 3, 2, 4>::configure(meta, hash_inputs, instance);
+        let poseidon_config = PoseidonChip::<MySpec<WIDTH, RATE>, WIDTH, RATE, L>::configure(meta, hash_inputs, instance);
 
         MerkleSumTreeConfig {
             advice: [col_a, col_b, col_c, col_d, col_e, col_f],
@@ -128,7 +135,8 @@ impl MerkleSumTreeChip {
         index: Value<Fp>,
     ) -> Result<(AssignedCell<Fp, Fp>, AssignedCell<Fp, Fp>), Error> {
 
-        let (left_hash, left_balance, right_hash, right_balance) = layouter.assign_region(
+        
+        let (left_hash, left_balance, right_hash, right_balance, computed_sum_cell) = layouter.assign_region(
             || "merkle prove layer",
             |mut region| {
                 // Row 0
@@ -166,13 +174,15 @@ impl MerkleSumTreeChip {
                 )?;
 
                 // Row 1
-                // TO DO Fix the swap constraint to work with 4 inputs and return 4 outputs
                 self.config.sum_selector.enable(&mut region, 1)?;
+                // TO DO: check whether it works correctly
                 // Here we just perform the assignment - no hashing is performed here!
-                let node_cell_value = node_cell.value().map(|x| x.to_owned());
-                let (mut l, mut r) = (node_cell_value, path_element);
+                let prev_hash_cell_value = prev_hash_cell.value().map(|x| x.to_owned());
+                let prev_balance_cell_value = prev_balance_cell.value().map(|x| x.to_owned());
+
+                let (mut l1, mut l2, mut r1, mut r2) = (prev_hash_cell_value, prev_balance_cell_value, element_hash, element_balance);
                 index.map(|x| {
-                    (l, r) = if x == Fp::zero() { (l, r) } else { (r, l) };
+                    (l1, l2, r1, r2) = if x == Fp::zero() { (l1, l2, r1, r2) } else { (r1, r2, l1, l2) };
                 });
 
                 // We need to perform the assignment of the row below
@@ -180,45 +190,57 @@ impl MerkleSumTreeChip {
                     || "assign left hash to be hashed",
                     self.config.advice[0],
                     1,
-                    || l,
+                    || l1,
                 )?;
 
                 let left_balance = region.assign_advice(
                     || "assign left balance to be hashed",
                     self.config.advice[1],
                     1,
-                    || l,
+                    || l2,
                 )?;
 
                 let right_hash = region.assign_advice(
                     || "assign right hash to be hashed",
                     self.config.advice[2],
                     1,
-                    || r,
+                    || r1,
                 )?;
 
                 let right_balance = region.assign_advice(
                     || "assign right balance to be hashed",
                     self.config.advice[3],
                     1,
-                    || r,
+                    || r2,
                 )?;
 
-                Ok((left_hash, left_balance, right_hash, right_balance))
+                // Now we can assign the sum result, which is to be assigned
+                // into the computed_sum cell.
+                let computed_sum = r1 + r2;
+
+                // TO DO: is it constrained correctly?
+                let computed_sum_cell = region.assign_advice(
+                    || "assign sum of left and right balance",
+                    self.config.advice[5],
+                    1,
+                    || computed_sum,
+                )?;
+
+                Ok((left_hash, left_balance, right_hash, right_balance, computed_sum_cell))
             },
         )?;
 
         // instantiate the poseidon_chip
-        let poseidon_chip = PoseidonChip::<P128Pow5T3, 3, 2, 4>::construct(self.config.poseidon_config.clone());
+        let poseidon_chip = PoseidonChip::<MySpec<WIDTH, RATE>, WIDTH, RATE, L>::construct(self.config.poseidon_config.clone());
 
         // The hash function inside the poseidon_chip performs the following action
         // 1. Copy the left and right cells from the previous row
         // 2. Perform the hash function and assign the digest to the current row
         // 3. Constrain the digest to be equal to the hash of the left and right values
         let computed_hash = poseidon_chip.hash(layouter.namespace(|| "hash two child nodes"), &[left_hash, left_balance, right_hash, right_balance])?;
-        // TO DO: modify computed_sum variable
-        let computed_sum = poseidon_chip.hash(layouter.namespace(|| "hash two child nodes"), &[left_hash, left_balance, right_hash, right_balance])?;
-        Ok((computed_hash, computed_sum))
+        // TO DO: check whether it works correctly
+
+        Ok((computed_hash, computed_sum_cell))
     }
 
     // Enforce permutation check between input cell and instance column at row passed as input
