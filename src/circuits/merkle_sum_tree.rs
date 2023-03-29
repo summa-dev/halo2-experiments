@@ -27,13 +27,12 @@ impl Circuit<Fp> for MerkleSumTreeCircuit {
         let col_c = meta.advice_column();
         let col_d = meta.advice_column();
         let col_e = meta.advice_column();
-        let col_f = meta.advice_column();
 
         let instance = meta.instance_column();
 
         MerkleSumTreeChip::configure(
             meta,
-            [col_a, col_b, col_c, col_d, col_e, col_f],
+            [col_a, col_b, col_c, col_d, col_e],
             instance,
         )
     }
@@ -48,7 +47,7 @@ impl Circuit<Fp> for MerkleSumTreeCircuit {
         let (leaf_hash_cell, leaf_balance_cell) = chip.assing_leaf_hash_and_balance(layouter.namespace(|| "assign leaf"), self.leaf_hash, self.leaf_balance)?;
 
         chip.expose_public(layouter.namespace(|| "public leaf hash"), &leaf_hash_cell, 0)?;
-        chip.expose_public(layouter.namespace(|| "public leaf balance"), &leaf_balance_cell, 0)?;
+        chip.expose_public(layouter.namespace(|| "public leaf balance"), &leaf_balance_cell, 1)?;
 
         // apply it for level 0 of the merkle tree
         // node cells passed as inputs are the leaf_hash cell and the leaf_balance cell
@@ -74,8 +73,8 @@ impl Circuit<Fp> for MerkleSumTreeCircuit {
             )?;
         }
 
-        chip.expose_public(layouter.namespace(|| "public root"), &computed_hash_prev_level_cell, 1)?;
-        chip.expose_public(layouter.namespace(|| "public balance sum"), &computed_balance_prev_level_cell, 1)?;
+        chip.expose_public(layouter.namespace(|| "public root"), &computed_hash_prev_level_cell, 2)?;
+        chip.expose_public(layouter.namespace(|| "public balance sum"), &computed_balance_prev_level_cell, 3)?;
         Ok(())
     }
 }

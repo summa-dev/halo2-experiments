@@ -8,7 +8,7 @@ const L: usize = 4;
 
 #[derive(Debug, Clone)]
 pub struct MerkleSumTreeConfig {
-    pub advice: [Column<Advice>; 6],
+    pub advice: [Column<Advice>; 5],
     pub bool_selector: Selector,
     pub swap_selector: Selector,
     pub sum_selector: Selector,
@@ -27,7 +27,7 @@ impl MerkleSumTreeChip {
 
     pub fn configure(
         meta: &mut ConstraintSystem<Fp>,
-        advice: [Column<Advice>; 6],
+        advice: [Column<Advice>; 5],
         instance: Column<Instance>,
     ) -> MerkleSumTreeConfig {
         let col_a = advice[0];
@@ -35,7 +35,6 @@ impl MerkleSumTreeChip {
         let col_c = advice[2];
         let col_d = advice[3];
         let col_e = advice[4];
-        let col_f = advice[5];
 
         // create selectors
         let bool_selector = meta.selector();
@@ -45,8 +44,7 @@ impl MerkleSumTreeChip {
         meta.enable_equality(col_a); // enable equality for leaf_hash copy constraint with instance column
         meta.enable_equality(col_b); // enable equality for balance_hash copy constraint with instance column
 
-        meta.enable_equality(col_e); // enable equality for computed_hash copy constraint across regions and for copy constraint with instance column
-        meta.enable_equality(col_f); // enable equality for computed_sum copy constraint across regions and for copy constraint with instance column
+        meta.enable_equality(col_e); // enable equality for computed_sum copy constraint across regions and for copy constraint with instance column
 
         meta.enable_equality(instance);
 
@@ -88,7 +86,7 @@ impl MerkleSumTreeChip {
             let s = meta.query_selector(sum_selector);
             let left_balance = meta.query_advice(col_b, Rotation::cur());
             let right_balance = meta.query_advice(col_d, Rotation::cur());
-            let computed_sum = meta.query_advice(col_f, Rotation::cur());
+            let computed_sum = meta.query_advice(col_e, Rotation::cur());
             vec![s * (left_balance + right_balance - computed_sum)]
         });
 
@@ -103,7 +101,7 @@ impl MerkleSumTreeChip {
         );
 
         MerkleSumTreeConfig {
-            advice: [col_a, col_b, col_c, col_d, col_e, col_f],
+            advice: [col_a, col_b, col_c, col_d, col_e],
             bool_selector,
             swap_selector,
             sum_selector,
@@ -128,7 +126,7 @@ impl MerkleSumTreeChip {
         let leaf_balance_cell = layouter.assign_region(
             || "assign leaf balance",
             |mut region| {
-                region.assign_advice(|| "assign leaf", self.config.advice[0], 0, || leaf_balance)
+                region.assign_advice(|| "leaf balance", self.config.advice[1], 0, || leaf_balance)
             },
         )?;
 
@@ -175,15 +173,21 @@ impl MerkleSumTreeChip {
                         0,
                         || element_balance,
                     )?;
-                    region.assign_advice(|| "assign index", self.config.advice[4], 0, || index)?;
+                    region.assign_advice(|| 
+                        "assign index", 
+                    self.config.advice[4], 
+                    0, 
+                    || index
+                    )?;
 
                     // Row 1
                     self.config.sum_selector.enable(&mut region, 1)?;
-                    // TO DO: check whether it works correctly
-                    // Here we just perform the assignment - no hashing is performed here!
+
                     let prev_hash_cell_value = prev_hash_cell.value().map(|x| x.to_owned());
                     let prev_balance_cell_value = prev_balance_cell.value().map(|x| x.to_owned());
 
+                    // perform the swap according to the index
+                    // TO DO: check whether it works correctly
                     let (mut l1, mut l2, mut r1, mut r2) = (
                         prev_hash_cell_value,
                         prev_balance_cell_value,
@@ -233,7 +237,7 @@ impl MerkleSumTreeChip {
                     // TO DO: is it constrained correctly?
                     let computed_sum_cell = region.assign_advice(
                         || "assign sum of left and right balance",
-                        self.config.advice[5],
+                        self.config.advice[4],
                         1,
                         || computed_sum,
                     )?;
@@ -258,7 +262,7 @@ impl MerkleSumTreeChip {
         // 2. Perform the hash function and assign the digest to the current row
         // 3. Constrain the digest to be equal to the hash of the left and right values
         let computed_hash = poseidon_chip.hash(
-            layouter.namespace(|| "hash two child nodes"),
+            layouter.namespace(|| "hash four child nodes"),
             &[left_hash, left_balance, right_hash, right_balance],
         )?;
 

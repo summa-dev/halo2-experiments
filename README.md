@@ -265,32 +265,32 @@ This chip implements the logic of a [Merkle Sum Tree](https://github.com/summa-d
 - Each Leaf Node contains a hash and a value.
 - Each Middle Node contains a hash and a value where hash is equal to `Hash(left_child_hash, left_child_sum, right_child_hash, right_child_sum)` and value is equal to `left_child_sum + right_child_sum`.
 
-A level inside the tree consist of the following region inside the chip:
+A level inside the tree consists of the following region inside the chip:
 
 For the level 0 of the tree:
 
-| a                | b                     | c               |    d              |   e   |   f  |bool_selector | swap_selector | hash_selector | sum_selector
-| --               | -                     | --              |   ---             |  ---  |  --- |    --          | ---           | ---          | ---
-| leaf_hash        | left_balance          | element_hash    |element_balance    | index |  -   |       1       | 1             | 0            | 0
-| input_left_hash  | input_left_balance    | input_right_hash|input_right_balance|computed_hash | computed_sum |      0       | 0             | 1           | 1
+| a                | b                     | c               |    d              |   e   |   bool_selector | swap_selector |  sum_selector
+| --               | -                     | --              |   ---             |  ---  |    --          | ---           |  ---
+| leaf_hash        | left_balance          | element_hash    |element_balance    | index |        1       | 1             |  0
+| input_left_hash  | input_left_balance    | input_right_hash|input_right_balance|computed_sum |     0       | 0             |  1
 
 At row 0, we assign the leaf_hash, the left_balance, the element_hash (from `path_element_hashes`), the element_balance (from `path_element_balances`) and the bit (from `path_indices`). At this row we turn on `bool_selector` and `swap_selector`.
 
-At row 1, we assign the input_left_hash, the input_right_balance, the input_right_hash, the input_right_balance and the digest. At this row we turn on `hash_selector`.
+At row 1, we assign the input_left_hash, the input_right_balance, the input_right_hash, the input_right_balance and the digest. 
+At this row we activate the `poseidon_chip` and call the `hash` function on that by passing as input cells `[input_left_hash, input_left_balance, input_right_hash, input_right_balance]`. This function will return the assigned cell containing the `computed_hash`.
 
 The chip contains 4 custom gates: 
 
 - If the `bool_selector` is on, checks that the value inside the c column is either 0 or 1
 - If the `swap_selector` is on, checks that the swap on the next row is performed correctly according to the `bit`
 - If the `sum_selector` is on, checks that the sum between the `input_left_balance` and the `input_right_balance` is equal to the `computed_sum`
-- If the `hash_selector` is on, checks that the digest is equal to the (poseidon) hash between input_left_hash, input_left_balance, input_right_hash and input_right_balance.
 
 For the other levels of the tree:
 
-| a                | b                    | c              |    d              |   e   | f             |bool_selector | swap_selector | hash_selector  | sum_selector
-| --               | -                    | --             |   ---             |  ---  |  ---          | --           | ---           | ---           | ---
-| computed_hash_prev_level    | computed_sum_prev_level | element_hash   |element_balance    | index |   -           |     1        | 1             | 0            | 0
-| input_left_hash  | input_left_balance   |input_right_hash|input_right_balance|computed_hash |  computed_sum |    0         | 0             | 1           | 1
+| a                | b                    | c              |    d              |   e   | bool_selector | swap_selector | sum_selector  
+| --               | -                    | --             |   ---             |  ---  |  --           | ---           |  ---
+| computed_hash_prev_level    | computed_sum_prev_level | element_hash   |element_balance    | index |      1        | 1             |  0
+| input_left_hash  | input_left_balance   |input_right_hash|input_right_balance|computed_sum |     0         | 0             |  1
 
 When moving to the next level of the tree, the `computed_hash_prev_level` is copied from the `computed_hash` of the previous level. While the `computed_sum_prev_level` is copied from the `computed_sum` at the previous level.
 
@@ -304,6 +304,7 @@ Furthermore, the chip contains three permutation check:
 TO DO: 
 - [ ] Replace usage of constants in Inclusion Check.
 - [ ] Check that vectors passed as input to the Merkle Sum Tree are the same length
+- [ ] Check the security of the Poseidon Hash
 
 
 
