@@ -216,6 +216,9 @@ In particular we can see that the poseidon hash is instantiated using different 
     - call `hash` on the poseidon chip passing the hash input values to the advice columns `hash_inputs`. This function will return the assigned cells inside the advice columns `hash_inputs`. Later it will initialize the `pow5_chip` and call the `hash` function on the `pow5_chip` passing the `hash_input` column. This function will return an assigned cell that represents the constrained output of the hash function.
     - call the `expose_public` function on the poseidon chip by passing in the assigned cell output of the `hash` function. This function will constrain it to be equal to the expected hash output passed into the public instance column.
 
+`cargo test -- --nocapture test_poseidon`
+`cargo test --all-features -- --nocapture print_poseidon`
+
 # Experiment 8 - Merkle Tree V3
 
 This experiment re-implements the Merkle Tree circuit of experiment 6 using the PoseidonChip created in experiment 7. 

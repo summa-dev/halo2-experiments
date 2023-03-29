@@ -1,6 +1,6 @@
 use super::super::chips::poseidon::{PoseidonChip, PoseidonConfig};
 use halo2_gadgets::poseidon::primitives::*;
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{arithmetic::Field, circuit::*, plonk::*, halo2curves::pasta::Fp};
 use std::marker::PhantomData;
 
 struct PoseidonCircuit<
@@ -63,25 +63,29 @@ impl<
 
 #[cfg(test)]
 mod tests {
+    use super::MySpec;
     use std::marker::PhantomData;
     use super::PoseidonCircuit;
-    use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128Pow5T3};
+    use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength};
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
     fn test_poseidon() {
         let input = 99u64;
-        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input)];
+        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input), Fp::from(input)];
 
-        println!("input: {:?}", Fp::from(input));
+        const WIDTH: usize = 5;
+        const RATE: usize = 4;
+        const L: usize = 4;
+
+        assert_eq!(hash_input.len(), L);
+        assert_eq!(WIDTH, hash_input.len() + 1);
+        assert_eq!(RATE, hash_input.len());
 
         // compute the hash outside of the circuit
         let digest =
-            poseidon::Hash::<_, P128Pow5T3, ConstantLength<3>, 3, 2>::init().hash(hash_input);
+            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init().hash(hash_input);
 
-        // print output
-        println!("output: {:?}", digest);
-
-        let circuit = PoseidonCircuit::<P128Pow5T3, 3, 2, 3> {
+        let circuit = PoseidonCircuit::<MySpec<WIDTH,RATE>, WIDTH, RATE, L> {
             hash_input: hash_input.map(Value::known),
             digest: Value::known(digest),
             _spec: PhantomData,
@@ -94,6 +98,7 @@ mod tests {
     #[cfg(feature = "dev-graph")]
     #[test]
     fn print_poseidon() {
+        use super::MySpec;
         use halo2_proofs::halo2curves::pasta::Fp;
         use plotters::prelude::*;
 
@@ -103,12 +108,16 @@ mod tests {
         let root = root.titled("Posiedon Layout", ("sans-serif", 60)).unwrap();
 
         let input = 99u64;
-        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input)];
+        let hash_input = [Fp::from(input), Fp::from(input), Fp::from(input), Fp::from(input)];
+
+        const WIDTH: usize = 5;
+        const RATE: usize = 4;
+        const L: usize = 4;
 
         let digest =
-            poseidon::Hash::<_, P128Pow5T3, ConstantLength<3>, 3, 2>::init().hash(hash_input);
+            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init().hash(hash_input);
 
-        let circuit = PoseidonCircuit::<P128Pow5T3, 3, 2, 3> {
+        let circuit = PoseidonCircuit::<MySpec<WIDTH, RATE>, WIDTH, RATE, L> {
             hash_input: hash_input.map(|x| Value::known(x)),
             digest: Value::known(digest),
             _spec: PhantomData,
@@ -117,5 +126,32 @@ mod tests {
         halo2_proofs::dev::CircuitLayout::default()
             .render(7, &circuit, &root)
             .unwrap();
+    }
+}
+
+// P128Pow5T3 is the default Spec provided by the Halo2 Gadget => https://github.com/privacy-scaling-explorations/halo2/blob/main/halo2_gadgets/src/poseidon/primitives/p128pow5t3.rs#L13
+// This spec hardcodes the WIDTH and RATE parameters of the hash function to 3 and 2 respectively
+// This is problematic because to perform an hash of a input array of length 4, we need the WIDTH parameter to be higher than 3
+// Since the WIDTH parameter is used to define the number of hash_inputs column in the PoseidonChip.
+// Because of that we need to define a new Spec
+// MySpec struct allows us to define the parameters of the Poseidon hash function WIDTH and RATE
+#[derive(Debug, Clone, Copy)]
+pub struct MySpec<const WIDTH: usize, const RATE: usize>;
+
+impl<const WIDTH: usize, const RATE: usize> Spec<Fp, WIDTH, RATE> for MySpec<WIDTH, RATE> {
+    fn full_rounds() -> usize {
+        8
+    }
+
+    fn partial_rounds() -> usize {
+        56
+    }
+
+    fn sbox(val: Fp) -> Fp {
+        val.pow_vartime(&[5])
+    }
+
+    fn secure_mds() -> usize {
+        0
     }
 }

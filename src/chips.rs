@@ -6,4 +6,4 @@ pub mod merkle_v1;
 pub mod merkle_v2;
 pub mod poseidon;
 pub mod merkle_v3;
-pub mod merkle_sum_tree;
+// pub mod merkle_sum_tree;
