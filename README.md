@@ -303,10 +303,9 @@ Furthermore, the chip contains four permutation check:
 - Verifies that the last `computed_sum` is equal to the (expected) `balance_sum` of the tree which is passed as (public) value to the instance column
 
 TO DO: 
-- [ ] Replace usage of constants in Inclusion Check.
+- [x] Replace usage of constants in Inclusion Check.
 - [ ] Check that vectors passed as input to the Merkle Sum Tree are the same length
 - [ ] Check the security of the Poseidon Hash
-- [ ] Create simiplified type for assigned cells
 
 
 
