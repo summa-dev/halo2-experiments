@@ -98,10 +98,13 @@ impl AddCarryChip {
             || "adivce row for accumulating",
             |mut region| {
                 // enable hash selector
-                self.config.selector.enable(&mut region, 0)?;
+                self.config.selector.enable(&mut region, 1)?;
+
+                let _ = prev_b.copy_advice(|| "prev_b", &mut region, self.config.advice[1], 0);
+                let _ = prev_c.copy_advice(|| "prev_c", &mut region, self.config.advice[2], 0);
 
                 // Assign new amount to the cell inside the region
-                region.assign_advice(|| "a", self.config.advice[0], 0, || a)?;
+                region.assign_advice(|| "a", self.config.advice[0], 1, || a)?;
 
                 // combine accumulated value and new
                 let mut sum = Fp::zero();
@@ -132,13 +135,13 @@ impl AddCarryChip {
                 let b_cell = region.assign_advice(
                     || "sum_hi",
                     self.config.advice[1],
-                    0,
+                    1,
                     || Value::known(hi),
                 )?;
                 let c_cell = region.assign_advice(
                     || "sum_lo",
                     self.config.advice[2],
-                    0,
+                    1,
                     || Value::known(lo),
                 )?;
 
