@@ -16,6 +16,12 @@ List of available experiments:
 - [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
 - [Experiment 9 - Merkle Sum Tree](#experiment-9---merkle-sum-tree)
 
+# Run
+
+`cargo test --all-features -- --nocapture`
+
+This command will test all the circuits and print the representation of the circuits inside the `prints` folder.
+
 # Experiment 1 - Inclusion Check
 
 The inclusion check Chip is a Chip built using 2 advice columns, 1 selector column and 1 instance column. The advice columns contain the list of usernames and balances. The instance column contains the username and balance of the user that I am generating the proof for. Let's call it `pubUsername` and `pubBalance` This should be public and the snark should verify that there's a row in the advise column where `pubUsername` and `pubBalance` entries match. At that row the selector should be turned on.
@@ -29,9 +35,6 @@ The inclusion check Chip is a Chip built using 2 advice columns, 1 selector colu
 The constraint is enforced as a permutation check between the cell of the advice column and the cell of the instance column.
 
 In this example, we don't really need a selector as we are not enforcing any custom gate.
-
-`cargo test -- --nocapture test_inclusion_check_1`
-`cargo test --all-features -- --nocapture print_inclusion_check`
 
 ### Configuration
 
@@ -63,7 +66,6 @@ The constraint is enforced as a permutation check between the cell of the advise
 
 The 4 advice columns and the 1 instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The selector is instantiated inside the `configure` function of the chip. That's because this selector is specific for the InclusionCheck chip and doesn't need to be shared across other chips.
 
-`cargo test -- --nocapture test_inclusion_check_2`
 
 # Experiment 3 - Dummy Hash V1
 
@@ -81,8 +83,6 @@ The zk snark verifies that the prover knows `a` such that the output of the hash
 `a` and `b` here are the advice column, namely the private inputs of circuit.
 
 The instance column contains the public input of the circuit namely the result of the hash function that the zk snark should verify.
-
-`cargo test -- --nocapture test_hash_1`
 
 ### Configuration
 
@@ -108,8 +108,6 @@ The instance column contains the public input of the circuit namely the result o
 ### Configuration
 
 Same as dummy hash V2.
-
-`cargo test -- --nocapture test_hash_2`
 
 # Experiment 5 - Merkle Tree V1
 
@@ -147,8 +145,6 @@ Furthermore, the chip contains a permutation check:
 
 The MerkleTreeV1Config contains 3 advice column, 1 bool_selector, 1 swap_selector, 1 hash_selector, and 1 instance column. The advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The selectors are instantiated inside the `configure` function of the chip. That's because these selectors are specific for the MerkleTreeV1 chip and don't need to be shared across other chips.
 
-`cargo test -- --nocapture test_merkle_tree_1`
-
 # Experiment 6 - Merkle Tree V2
 
 This Merkle Tree specification works exactly the same as the previous one. The only difference is that it makes use of the `Hash2Chip` and `Hash2Config` created in experiment 4 rather than rewriting the logic of the hash inside the MerkleTree Chip, as it was done in experiment 5. 
@@ -163,9 +159,6 @@ It's worth nothing how the `Hash2Chip` and `Hash2Config` are used in this circui
 The MerkleTreeV2Config contains 3 advice column, 1 bool_selector, 1 swap_selector, 1 instance column and the Hash2Config.
 
 The advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the MerkleTreeV2Chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because these selectors are specific for the MerkleTreeV2Chip and don't need to be shared across other chips. The child chip Hash2Chip is instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because the Hash2Chip is specific for the MerkleTreeV2Chip by passing in the advice columns and the instance column that are shared between the two chips. In this way we can leverage `Hash2Chip` with its gates and its assignment function inside our MerkleTreeV2Chip. 
-
-`cargo test -- --nocapture test_merkle_tree_1`
-
 
 # Experiment 7 - Poseidon Hash
 
@@ -218,9 +211,6 @@ In particular we can see that the poseidon hash is instantiated using different 
     - call `hash` on the poseidon chip passing the hash input values to the advice columns `hash_inputs`. This function will return the assigned cells inside the advice columns `hash_inputs`. Later it will initialize the `pow5_chip` and call the `hash` function on the `pow5_chip` passing the `hash_input` column. This function will return an assigned cell that represents the constrained output of the hash function.
     - call the `expose_public` function on the poseidon chip by passing in the assigned cell output of the `hash` function. This function will constrain it to be equal to the expected hash output passed into the public instance column.
 
-`cargo test -- --nocapture test_poseidon`
-`cargo test --all-features -- --nocapture print_poseidon`
-
 # Experiment 8 - Merkle Tree V3
 
 This experiment re-implements the Merkle Tree circuit of experiment 6 using the PoseidonChip created in experiment 7. 
@@ -254,9 +244,6 @@ At proving time:
     - call the `merkle_prover_layer` function on the chip for each level of the merkle tree. 
     - call the `expose_public` function by passing in the last output of the `merkle_prove_layer` function. This function will constrain it to be equal to the expected root passed into the public instance column.
 
-`cargo test -- --nocapture test_merkle_tree_3`
-`cargo test --all-features -- --nocapture print_merkle_tree_3`
-
 # Experiment 9 - Merkle Sum Tree
 
 This chip implements the logic of a [Merkle Sum Tree](https://github.com/summa-dev/pyt-merkle-sum-tree). The peculiarity of a Merkle Sum Tree are that:
@@ -271,10 +258,10 @@ For the level 0 of the tree:
 
 | a                | b                     | c               |    d              |   e        |  bool_selector | swap_selector |  sum_selector
 | --               | -                     | --              |   ---             |  ---       |    --          | ---           |  ---
-| leaf_hash        | left_balance          | element_hash    |element_balance    | index      |        1       | 1             |  0
+| leaf_hash        | leaf_balance          | element_hash    |element_balance    | index      |        1       | 1             |  0
 | input_left_hash  | input_left_balance    | input_right_hash|input_right_balance|computed_sum|     0          | 0             |  1
 
-At row 0, we assign the leaf_hash, the left_balance, the element_hash (from `path_element_hashes`), the element_balance (from `path_element_balances`) and the bit (from `path_indices`). At this row we turn on `bool_selector` and `swap_selector`.
+At row 0, we assign the leaf_hash, the leaf_balance, the element_hash (from `path_element_hashes`), the element_balance (from `path_element_balances`) and the bit (from `path_indices`). At this row we turn on `bool_selector` and `swap_selector`.
 
 At row 1, we assign the input_left_hash, the input_right_balance, the input_right_hash, the input_right_balance and the digest. 
 At this row we activate the `poseidon_chip` and call the `hash` function on that by passing as input cells `[input_left_hash, input_left_balance, input_right_hash, input_right_balance]`. This function will return the assigned cell containing the `computed_hash`.

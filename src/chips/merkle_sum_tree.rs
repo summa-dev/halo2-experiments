@@ -97,7 +97,6 @@ impl MerkleSumTreeChip {
         // TO DO: Understand if this is intantiated correctly
         let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
-        // TO DO: Understand the role of the instance in the poseidon_config
         let poseidon_config = PoseidonChip::<MySpec<WIDTH, RATE>, WIDTH, RATE, L>::configure(
             meta,
             hash_inputs

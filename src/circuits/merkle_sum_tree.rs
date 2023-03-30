@@ -92,8 +92,8 @@ mod tests {
 
     #[derive(Debug, Clone)]
     struct Node {
-        hash: Fp,
-        balance: Fp,
+        pub hash: Fp,
+        pub balance: Fp,
     }
 
     fn compute_merkle_sum_root(node: &Node,  elements: &Vec<Node>, indices: &Vec<u64>) -> Node {
@@ -116,8 +116,35 @@ mod tests {
         digest
     }
 
-    #[test]
-    fn test_merkle_sum_tree() {
+    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<u64>) -> MerkleSumTreeCircuit{
+
+        let element_hashes: Vec<Value<Fp>> = elements
+        .iter()
+        .map(|x| Value::known(x.hash))
+        .collect();
+
+        let element_balances: Vec<Value<Fp>> = elements
+            .iter()
+            .map(|x| Value::known(x.balance))
+            .collect();
+
+        let indices_fp: Vec<Value<Fp>> = indices
+            .iter()
+            .map(|x| Value::known(Fp::from(x.to_owned())))
+            .collect();
+
+        MerkleSumTreeCircuit {
+            leaf_hash: Value::known(leaf.hash),
+            leaf_balance: Value::known(leaf.balance),
+            path_element_hashes: element_hashes,
+            path_element_balances: element_balances,
+            path_indices: indices_fp,
+        }
+
+    }
+
+    fn setup() -> (Node, Vec<Node>, Vec<u64>, Node) {
+
         let leaf = Node {
             hash: Fp::from(10u64),
             balance: Fp::from(100u64),
@@ -150,74 +177,144 @@ mod tests {
 
         let root = compute_merkle_sum_root(&leaf, &elements, &indices);
 
-        let element_hashes: Vec<Value<Fp>> = elements
-            .iter()
-            .map(|x| Value::known(x.hash))
-            .collect();
+        (leaf, elements, indices, root)
+    }
 
-        let element_balances: Vec<Value<Fp>> = elements
-            .iter()
-            .map(|x| Value::known(x.balance))
-            .collect();
+    #[test]
+    fn test_valid_merkle_sum_tree() {
 
-        let indices_fp: Vec<Value<Fp>> = indices
-            .iter()
-            .map(|x| Value::known(Fp::from(x.to_owned())))
-            .collect();
+        let (leaf, elements, indices, root) = setup();
 
-        let circuit = MerkleSumTreeCircuit {
-            leaf_hash: Value::known(leaf.hash),
-            leaf_balance: Value::known(leaf.balance),
-            path_element_hashes: element_hashes,
-            path_element_balances: element_balances,
-            path_indices: indices_fp,
-        };
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
 
-        let correct_public_input = vec![leaf.hash, leaf.balance, root.hash, Fp::from(400u64)];
-        let valid_prover = MockProver::run(10, &circuit, vec![correct_public_input]).unwrap();
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        let valid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
         valid_prover.assert_satisfied();
+    }
 
-        let wrong_public_input = vec![leaf.hash, leaf.balance, root.hash, Fp::from(0)];
-        let invalid_prover = MockProver::run(10, &circuit, vec![wrong_public_input]).unwrap();
+    #[test]
+    fn test_invalid_root_balance() {
+
+        let (leaf, elements, indices, root) = setup();
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, Fp::from(1000u64)];
+
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
+        // error => Err([Equality constraint not satisfied by cell (Column('Advice', 4 - ), in Region 22 ('merkle prove layer') at offset 1), Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 3)])
+        // computed_sum (advice column[4]) != root.sum (instance column row 3)
         assert!(invalid_prover.verify().is_err());
+    }
+
+    #[test]
+    fn test_invalid_root_hash() {
+
+        let (leaf, elements, indices, root) = setup();
+
+        let public_input = vec![leaf.hash, leaf.balance, Fp::from(1000u64), root.balance];
+
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
+        // error => Err([Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 2), Equality constraint not satisfied by cell (Column('Advice', 5 - ), in Region 26 ('permute state') at offset 36)])
+        // computed_hash (advice column[5]) != root.hash (instance column row 2)
+        assert!(invalid_prover.verify().is_err());
+    }
+
+    #[test]
+    fn test_invalid_leaf_hash() {
+
+        let (leaf, elements, indices, root) = setup();
+
+        let public_input = vec![Fp::from(1000u64), leaf.balance, root.hash, root.balance];
+
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
+        // error => Equality constraint not satisfied by cell (Column('Advice', 0 - ), in Region 2 ('merkle prove layer') at offset 0). Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 0)
+        // leaf_hash (advice column[0]) != leaf.hash (instance column row 0)
+        assert!(invalid_prover.verify().is_err());
+
+    }
+
+    #[test]
+    fn test_invalid_leaf_balance() {
+
+        let (leaf, elements, indices, root) = setup();
+
+        let public_input = vec![leaf.hash, Fp::from(1000u64), root.hash, root.balance];
+
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
+        // error => Equality constraint not satisfied by cell (Column('Advice', 1 - ), in Region 2 ('merkle prove layer') at offset 0) Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 1)
+        // leaf_balance (advice column[1]) != leaf.balance (instance column row 1)
+        assert!(invalid_prover.verify().is_err());
+    }
+
+    #[test]
+    fn test_non_binary_index() {
+
+        let (leaf, elements, mut indices, root) = setup();
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
+
+        indices[0] = 2;
+
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
+        // error: constraint not satisfied 'bool constraint'
+        // error: constraint not satisfied 'swap constraint'
+        assert!(invalid_prover.verify().is_err());
+    }
+
+    #[test]
+    fn test_swapping_index() {
+
+        let (leaf, elements, mut indices, root) = setup();
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
+
+        indices[0] = 1;
+
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
+        // error => Err([Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 2), Equality constraint not satisfied by cell (Column('Advice', 5 - ), in Region 26 ('permute state') at offset 36)])
+        // computed_hash (advice column[5]) != root.hash (instance column row 2)
+        assert!(invalid_prover.verify().is_err());
+    }
+
+    #[cfg(feature = "dev-graph")]
+    #[test]
+    fn print_merkle_sum_tree() {
+        use plotters::prelude::*;
+
+        let root =
+            BitMapBackend::new("prints/merkle-sum-tree-layout.png", (1024, 3096)).into_drawing_area();
+        root.fill(&WHITE).unwrap();
+        let root = root
+            .titled("Merkle Sum Tree Layout", ("sans-serif", 60))
+            .unwrap();
+
+        let (leaf, elements, indices, _) = setup();
+
+        let circuit = instantiate_circuit(leaf, elements, indices);
+
+        halo2_proofs::dev::CircuitLayout::default()
+            .render(8, &circuit, &root)
+            .unwrap();
     }
 }
 
-// #[cfg(feature = "dev-graph")]
-// #[test]
-// fn print_merkle_tree_3() {
-//     use halo2_proofs::halo2curves::pasta::Fp;
-//     use plotters::prelude::*;
 
-//     let root =
-//         BitMapBackend::new("prints/merkle-tree-3-layout.png", (1024, 3096)).into_drawing_area();
-//     root.fill(&WHITE).unwrap();
-//     let root = root
-//         .titled("Merkle Tree 3 Layout", ("sans-serif", 60))
-//         .unwrap();
-
-//     let leaf = 99u64;
-//     let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
-//     let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
-//     let digest: u64 = leaf + elements.iter().sum::<u64>();
-
-//     let leaf_fp = Value::known(Fp::from(leaf));
-//     let elements_fp: Vec<Value<Fp>> = elements
-//         .iter()
-//         .map(|x| Value::known(Fp::from(x.to_owned())))
-//         .collect();
-//     let indices_fp: Vec<Value<Fp>> = indices
-//         .iter()
-//         .map(|x| Value::known(Fp::from(x.to_owned())))
-//         .collect();
-
-//     let circuit = MerkleTreeV3Circuit {
-//         leaf: leaf_fp,
-//         path_elements: elements_fp,
-//         path_indices: indices_fp,
-//     };
-
-//     halo2_proofs::dev::CircuitLayout::default()
-//         .render(8, &circuit, &root)
-//         .unwrap();
-// }
