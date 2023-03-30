@@ -242,29 +242,58 @@ TO DO:
 - [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
 - [x] Add 2 public inputs to merkle_v1
 
-# Experiment 9 - Add carry
+# Experiment 9 - Add carry v1
 
-Allowing the addition of new values to previously accumulated amounts which consist of multi-columns
+Allowing the addition of new values to previously accumulated amounts into two columns, acc_hi and acc_lo.
 
-Circuit looks like this
+Circuit looks like this,
 
 | - | value  | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
 | - | ----      | ---      |   ---      | --| 
-| 0 | - | 0x1 |  0xffff | 0x1 |
-| 1 | 0x2 | 0x2 |  0x1 | 0xffff |  
-| 2 | - | - | - | 0x2 |
-| 3 | - | - | - | 0x1 |
+| 0 | - | 0 |  0xffff | 0 |
+| 1 | 0x1 | 0x1 |  0 | 0xffff |  
+| 2 | - | - | - | 0x1 |
+| 3 | - | - | - | 0 |
 
-Should satisfy
+### Configuration 
+
+the first rows's values assigned with instance, that would be replace 0 with using assign from constant (or zero value from instance) in future overflow gadget. And `assign_row` function needs values from first row as arguments, these will be copied for the region. and then permutation check like below. 
 
 ```Rust
 // following above table
-0 = (value + (acc_hi[0] * (1 << 16)) + acc_lo[0]) 
-    - ((acc_hi[1] * (1 << 16)) + acc_lo[1] )
+0 == (value + (acc_hi[1] * (1 << 16)) + acc_lo[1]) 
+    - ((acc_hi[2] * (1 << 16)) + acc_lo[2] )
 
 ```
 
-TO DO: 
-- [ ] Range check for left most column of multi-columns for accumulation
-- [ ] Support 2^256 in Accumulated value with multi-columns
+`cargo test --package halo2-experiments --lib -- circuits::add_carry_v1`
+
+TO DO: -> moved to next version.
+
+~~- [ ] Range check for left most column of multi-columns for accumulation~~<br>
+~~- [ ] Support 2^256 in Accumulated value with multi-columns~~
+
+# Experiment 10 - Add carry v2
+
+Allowing the addition of new values to previously accumulated amounts into two columns, acc_hi and acc_lo.
+
+Circuit looks like this
+
+| - | value | acc_hi_inv | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
+| - | ----  | ---   | ---      |   ---      | --| 
+| 0 | - | - |  0 |  0xfffe | 0x1 |
+| 2 | 0x1 | * |  0 | 0xffff | 0xfffe |  
+| 3 | - | - | - | - | 0x0 |
+| 4 | - | - | - | - | 0x1 |
+
+### Configuration 
+
+As similar like v1, used simple configuration. but added one more constraint with one more advice column for inverted number. this constraint polynomial followed `is_zero` gadget from `zkevm-circuit`.
+the addition constraint like below.
+
+```Rust
+// following above table
+0 == acc_hi[1] * (1 - acc_hi[1] * acc_hi_inv[1]) 
+
+```
 
