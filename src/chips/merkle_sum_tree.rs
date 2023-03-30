@@ -62,7 +62,6 @@ impl MerkleSumTreeChip {
 
         // Enforces that if the swap bit (e) is on, l1=c, l2=d, r1=a, and r2=b. Otherwise, l1=a, l2=b, r1=c, and r2=d.
         // This applies only when the swap selector is enabled
-        // TO DO: Check if this works correctly
         meta.create_gate("swap constraint", |meta| {
             let s = meta.query_selector(swap_selector);
             let a = meta.query_advice(col_a, Rotation::cur());
@@ -189,7 +188,6 @@ impl MerkleSumTreeChip {
                     let prev_balance_cell_value = prev_balance_cell.value().map(|x| x.to_owned());
 
                     // perform the swap according to the index
-                    // TO DO: check whether it works correctly
                     let (mut l1, mut l2, mut r1, mut r2) = (
                         prev_hash_cell_value,
                         prev_balance_cell_value,
