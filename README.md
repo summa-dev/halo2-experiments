@@ -269,10 +269,10 @@ A level inside the tree consists of the following region inside the chip:
 
 For the level 0 of the tree:
 
-| a                | b                     | c               |    d              |   e   |   bool_selector | swap_selector |  sum_selector
-| --               | -                     | --              |   ---             |  ---  |    --          | ---           |  ---
-| leaf_hash        | left_balance          | element_hash    |element_balance    | index |        1       | 1             |  0
-| input_left_hash  | input_left_balance    | input_right_hash|input_right_balance|computed_sum |     0       | 0             |  1
+| a                | b                     | c               |    d              |   e        |  bool_selector | swap_selector |  sum_selector
+| --               | -                     | --              |   ---             |  ---       |    --          | ---           |  ---
+| leaf_hash        | left_balance          | element_hash    |element_balance    | index      |        1       | 1             |  0
+| input_left_hash  | input_left_balance    | input_right_hash|input_right_balance|computed_sum|     0          | 0             |  1
 
 At row 0, we assign the leaf_hash, the left_balance, the element_hash (from `path_element_hashes`), the element_balance (from `path_element_balances`) and the bit (from `path_indices`). At this row we turn on `bool_selector` and `swap_selector`.
 
@@ -284,17 +284,18 @@ The chip contains 4 custom gates:
 - If the `bool_selector` is on, checks that the value inside the c column is either 0 or 1
 - If the `swap_selector` is on, checks that the swap on the next row is performed correctly according to the `bit`
 - If the `sum_selector` is on, checks that the sum between the `input_left_balance` and the `input_right_balance` is equal to the `computed_sum`
+- checks that the `computed_hash` is equal to the hash of the `input_left_hash`, the `input_left_balance`, the `input_right_hash` and the `input_right_balance`. This hashing is enabled by the `poseidon_chip`.
 
 For the other levels of the tree:
 
-| a                | b                    | c              |    d              |   e   | bool_selector | swap_selector | sum_selector  
-| --               | -                    | --             |   ---             |  ---  |  --           | ---           |  ---
-| computed_hash_prev_level    | computed_sum_prev_level | element_hash   |element_balance    | index |      1        | 1             |  0
-| input_left_hash  | input_left_balance   |input_right_hash|input_right_balance|computed_sum |     0         | 0             |  1
+| a                         | b                       | c              |    d              |   e         | bool_selector | swap_selector | sum_selector  
+| --                        | -                       | --             |   ---             |  ---        |  --           | ---           |  ---
+| computed_hash_prev_level  | computed_sum_prev_level | element_hash   |element_balance    | index       |      1        | 1             |  0
+| input_left_hash           | input_left_balance      |input_right_hash|input_right_balance|computed_sum |     0         | 0             |  1
 
 When moving to the next level of the tree, the `computed_hash_prev_level` is copied from the `computed_hash` of the previous level. While the `computed_sum_prev_level` is copied from the `computed_sum` at the previous level.
 
-Furthermore, the chip contains three permutation check:
+Furthermore, the chip contains four permutation check:
 
 - Verfies that the `leaf_hash` is equal to the `leaf_hash` passed as (public) value to the instance column
 - Verfies that the `leaf_balance` is equal to the `leaf_balance` passed as (public) value to the instance column

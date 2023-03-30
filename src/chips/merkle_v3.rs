@@ -70,7 +70,7 @@ impl MerkleTreeV3Chip {
         let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
         let poseidon_config =
-            PoseidonChip::<P128Pow5T3, WIDTH, RATE, L>::configure(meta, hash_inputs, instance);
+            PoseidonChip::<P128Pow5T3, WIDTH, RATE, L>::configure(meta, hash_inputs);
 
         MerkleTreeV3Config {
             advice: [col_a, col_b, col_c],

@@ -44,14 +44,12 @@ impl MerkleSumTreeChip {
         // enable equality for leaf_hash copy constraint with instance column (col_a)
         // enable equality for balance_hash copy constraint with instance column (col_b)
         // enable equality for copying left_hash, left_balance, right_hash, right_balance into poseidon_chip (col_a, col_b, col_c, col_d)
+        // enable equality for computed_sum copy constraint with instance column (col_e)
         meta.enable_equality(col_a);
         meta.enable_equality(col_b);
         meta.enable_equality(col_c); 
         meta.enable_equality(col_d);
-
-
-        meta.enable_equality(col_e); // enable equality for computed_sum copy constraint across regions and for copy constraint with instance column
-
+        meta.enable_equality(col_e);
         meta.enable_equality(instance);
 
         // Enforces that e is either a 0 or 1 when the bool selector is enabled
@@ -102,8 +100,7 @@ impl MerkleSumTreeChip {
         // TO DO: Understand the role of the instance in the poseidon_config
         let poseidon_config = PoseidonChip::<MySpec<WIDTH, RATE>, WIDTH, RATE, L>::configure(
             meta,
-            hash_inputs,
-            instance,
+            hash_inputs
         );
 
         MerkleSumTreeConfig {
@@ -152,7 +149,7 @@ impl MerkleSumTreeChip {
             .assign_region(
                 || "merkle prove layer",
                 |mut region| {
-                    // Row 0
+                    // Row 0 
                     self.config.bool_selector.enable(&mut region, 0)?;
                     self.config.swap_selector.enable(&mut region, 0)?;
                     prev_hash_cell.copy_advice(

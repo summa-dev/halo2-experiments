@@ -1,4 +1,4 @@
-use super::super::chips::poseidon::hash::{PoseidonChip, PoseidonConfig};
+use super::super::chips::poseidon::hash_with_instance::{PoseidonChip, PoseidonConfig};
 use halo2_gadgets::poseidon::primitives::*;
 use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
 use std::marker::PhantomData;

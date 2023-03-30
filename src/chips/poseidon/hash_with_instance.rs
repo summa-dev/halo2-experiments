@@ -4,7 +4,7 @@ is already implemented in halo2_gadgets, there is no wrapper chip that makes it 
 */
 
 // This chip adds a set of advice columns to the gadget Chip to store the inputs of the hash
-// compared to `hash_with_instance` this version doesn't use any instance column.
+// Furthermore it adds an instance column to store the public expected output of the hash
 
 use halo2_gadgets::poseidon::{primitives::*, Hash, Pow5Chip, Pow5Config};
 use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 // The actual chip provided by halo2_gadgets is added to the parent Chip.
 pub struct PoseidonConfig<const WIDTH: usize, const RATE: usize, const L: usize> {
     hash_inputs: Vec<Column<Advice>>,
+    instance: Column<Instance>,
     pow5_config: Pow5Config<Fp, WIDTH, RATE>,
 }
 
@@ -46,6 +47,7 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
     pub fn configure(
         meta: &mut ConstraintSystem<Fp>,
         hash_inputs: Vec<Column<Advice>>,
+        instance: Column<Instance>,
     ) -> PoseidonConfig<WIDTH, RATE, L> {
         let partial_sbox = meta.advice_column();
         let rc_a = (0..WIDTH).map(|_| meta.fixed_column()).collect::<Vec<_>>();
@@ -54,6 +56,7 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         for i in 0..WIDTH {
             meta.enable_equality(hash_inputs[i]);
         }
+        meta.enable_equality(instance);
         meta.enable_constant(rc_b[0]);
 
         let pow5_config = Pow5Chip::configure::<S>(
@@ -66,6 +69,7 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
 
         PoseidonConfig {
             hash_inputs,
+            instance,
             pow5_config,
         }
     }
@@ -133,4 +137,12 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         hasher.hash(layouter.namespace(|| "hash"), hash_input_cells)
     }
 
+    pub fn expose_public(
+        &self,
+        mut layouter: impl Layouter<Fp>,
+        cell: &AssignedCell<Fp, Fp>,
+        row: usize,
+    ) -> Result<(), Error> {
+        layouter.constrain_instance(cell.cell(), self.config.instance, row)
+    }
 }

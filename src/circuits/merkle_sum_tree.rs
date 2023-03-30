@@ -96,7 +96,7 @@ mod tests {
         balance: Fp,
     }
 
-    fn compute_merkle_root(node: &Node,  elements: &Vec<Node>, indices: &Vec<u64>) -> Node {
+    fn compute_merkle_sum_root(node: &Node,  elements: &Vec<Node>, indices: &Vec<u64>) -> Node {
         let k = elements.len();
         let mut digest = node.clone();
         let mut message: [Fp; 4];
@@ -148,7 +148,7 @@ mod tests {
 
         let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
 
-        let root = compute_merkle_root(&leaf, &elements, &indices);
+        let root = compute_merkle_sum_root(&leaf, &elements, &indices);
 
         let element_hashes: Vec<Value<Fp>> = elements
             .iter()
