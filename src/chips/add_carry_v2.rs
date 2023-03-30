@@ -1,35 +1,37 @@
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
+use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation, arithmetic::Field};
 
 #[derive(Debug, Clone)]
-pub struct AddCarryConfig {
-    pub advice: [Column<Advice>; 3],
+pub struct AddCarryV2Config {
+    pub advice: [Column<Advice>; 4],
     pub instance: Column<Instance>,
     pub selector: Selector,
 }
 
 #[derive(Debug, Clone)]
-pub struct AddCarryChip {
-    config: AddCarryConfig,
+pub struct AddCarryV2Chip {
+    config: AddCarryV2Config,
 }
 
-impl AddCarryChip {
-    pub fn construct(config: AddCarryConfig) -> Self {
+impl AddCarryV2Chip {
+    pub fn construct(config: AddCarryV2Config) -> Self {
         Self { config }
     }
 
     pub fn configure(
         meta: &mut ConstraintSystem<Fp>,
-        advice: [Column<Advice>; 3],
+        advice: [Column<Advice>; 4],
         selector: Selector,
         instance: Column<Instance>,
-    ) -> AddCarryConfig {
+    ) -> AddCarryV2Config {
         let col_a = advice[0];
-        let col_b = advice[1];
-        let col_c = advice[2];
+        let col_b_inv = advice[1];
+        let col_b = advice[2];
+        let col_c = advice[3];
         let add_carry_selector = selector;
 
         // Enable equality on the advice and instance column to enable permutation check
         meta.enable_equality(col_a);
+        meta.enable_equality(col_b_inv);
         meta.enable_equality(col_b);
         meta.enable_equality(col_c);
         meta.enable_equality(instance);
@@ -40,19 +42,23 @@ impl AddCarryChip {
             let prev_b = meta.query_advice(col_b, Rotation::prev());
             let prev_c = meta.query_advice(col_c, Rotation::prev());
             let a = meta.query_advice(col_a, Rotation::cur());
+            let b_inv = meta.query_advice(col_b_inv, Rotation::cur());
             let b = meta.query_advice(col_b, Rotation::cur());
             let c = meta.query_advice(col_c, Rotation::cur());
 
             // Previous accumulator amount + new value from a_cell
             // using binary expression (x_n-4 * 2^16) + (x_n-3 * 2^8) + ... + (x_n * 2)
             vec![
-                s * ((a + (prev_b * Expression::Constant(Fp::from(1 << 16))) + prev_c)
-                    - ((b * Expression::Constant(Fp::from(1 << 16))) + c)),
+                s.clone() * ((a + (prev_b * Expression::Constant(Fp::from(1 << 16))) + prev_c)
+                    - ((b.clone() * Expression::Constant(Fp::from(1 << 16))) + c)),
+
+                // check 'b' is zero
+                s * b.clone() * (Expression::Constant(Fp::one()) - b.clone() * b_inv)
             ]
         });
 
-        AddCarryConfig {
-            advice: [col_a, col_b, col_c],
+        AddCarryV2Config {
+            advice: [col_a, col_b_inv, col_b, col_c],
             instance,
             selector: add_carry_selector,
         }
@@ -70,7 +76,7 @@ impl AddCarryChip {
                     || "first acc[1]",
                     self.config.instance,
                     0,
-                    self.config.advice[1],
+                    self.config.advice[2],
                     0,
                 )?;
 
@@ -78,7 +84,7 @@ impl AddCarryChip {
                     || "first acc[2]",
                     self.config.instance,
                     1,
-                    self.config.advice[2],
+                    self.config.advice[3],
                     0,
                 )?;
 
@@ -100,8 +106,8 @@ impl AddCarryChip {
                 // enable hash selector
                 self.config.selector.enable(&mut region, 1)?;
 
-                let _ = prev_b.copy_advice(|| "prev_b", &mut region, self.config.advice[1], 0);
-                let _ = prev_c.copy_advice(|| "prev_c", &mut region, self.config.advice[2], 0);
+                let _ = prev_b.copy_advice(|| "prev_b", &mut region, self.config.advice[2], 0);
+                let _ = prev_c.copy_advice(|| "prev_c", &mut region, self.config.advice[3], 0);
 
                 // Assign new amount to the cell inside the region
                 region.assign_advice(|| "a", self.config.advice[0], 1, || a)?;
@@ -134,16 +140,20 @@ impl AddCarryChip {
                 // assigning two columns of accumulating value
                 let b_cell = region.assign_advice(
                     || "sum_hi",
-                    self.config.advice[1],
+                    self.config.advice[2],
                     1,
                     || Value::known(hi),
                 )?;
                 let c_cell = region.assign_advice(
                     || "sum_lo",
-                    self.config.advice[2],
+                    self.config.advice[3],
                     1,
                     || Value::known(lo),
                 )?;
+
+                let b_inv = Value::known(hi).map(|value| value.invert().unwrap_or(Fp::zero()));
+
+                region.assign_advice(|| "b inv", self.config.advice[1], 1, || b_inv)?;
 
                 Ok((b_cell, c_cell))
             },
