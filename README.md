@@ -236,11 +236,17 @@ The child chip PoseidonChip is instantiated inside the `configure` function of t
 `cargo test -- --nocapture test_merkle_tree_3`
 `cargo test --all-features -- --nocapture print_merkle_tree_3`
 
-
 TO DO: 
-- [ ] Replace usage of constants in Inclusion Check.
+- [x] Replace usage of constants in Inclusion Check.
 - [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
 - [x] Add 2 public inputs to merkle_v1
+
+# Experiment 9 - LessEq Chip with Dynamic Lookup Table
+
+- Do I need to enable equality?
+- Assign table values to an advice column
+- Make it generic for Field F. 
+
 
 
 
