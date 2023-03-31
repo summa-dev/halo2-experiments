@@ -14,7 +14,6 @@ pub struct LessThanConfig {
     input: Column<Advice>,
     table: Column<Instance>,
     advice_table: Column<Advice>,
-    q_selector: Selector
 }
 
 #[derive(Debug, Clone)]
@@ -37,7 +36,6 @@ impl<F: FieldExt> LessThanChip<F> {
         table: Column<Instance>,
     ) -> LessThanConfig {
 
-        let q_selector = meta.complex_selector();
         let advice_table = meta.advice_column();
         meta.enable_equality(table);
         meta.enable_equality(advice_table);
@@ -48,10 +46,9 @@ impl<F: FieldExt> LessThanChip<F> {
         meta.lookup_any(
             "dynamic lookup range check", 
             |meta| {
-                let q_selector = meta.query_selector(q_selector);
                 let input = meta.query_advice(input, Rotation::cur());
                 let advice_table = meta.query_advice(advice_table, Rotation::cur());
-                vec![(q_selector * input, advice_table)]
+                vec![(input, advice_table)]
             }
         );
 
@@ -59,7 +56,6 @@ impl<F: FieldExt> LessThanChip<F> {
             input,
             table,
             advice_table,
-            q_selector
         }
     }
 
@@ -71,9 +67,6 @@ impl<F: FieldExt> LessThanChip<F> {
         layouter.assign_region(
             || "less than assignment",
             |mut region| {
-
-                // enable selector 
-                self.config.q_selector.enable(&mut region, 0)?;
 
                 for i in 0..4 {
                     // Load Advice lookup table with Instance lookup table values.
