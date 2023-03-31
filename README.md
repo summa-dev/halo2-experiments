@@ -241,11 +241,11 @@ TO DO:
 - [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
 - [x] Add 2 public inputs to merkle_v1
 
-# Experiment 9 - LessEq Chip with Dynamic Lookup Table
+# Experiment 9 - LessEq Chip with Dynamic Lookup Table V1
 
-- Do I need to enable equality?
-- Assign table values to an advice column
-- Make it generic for Field F. 
+
+TO DO:
+- [x] Make it generic for Field F
 
 
 

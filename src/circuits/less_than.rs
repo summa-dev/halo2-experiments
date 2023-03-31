@@ -19,8 +19,9 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
 
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         let input = meta.advice_column();
+        let table = meta.instance_column();
 
-        LessThanChip::configure(meta, input)
+        LessThanChip::configure(meta, input, table)
     }
 
     fn synthesize(
@@ -44,17 +45,19 @@ mod tests {
     use super::MyCircuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
-    fn test_less_than_20() {
+    fn test_less_than_2() {
         let k = 4;
 
         // initate value
-        let value = Value::known(Fp::from(19));
+        let value = Value::known(Fp::from(3));
 
         let circuit = MyCircuit::<Fp> {
             input: value
         };
 
-        let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+        let pub_inputs = vec![Fp::from(0), Fp::from(1), Fp::from(2), Fp::from(3)];
+
+        let prover = MockProver::run(k, &circuit, vec![pub_inputs]).unwrap();
         prover.assert_satisfied();
     }
 }
