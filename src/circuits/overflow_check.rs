@@ -21,13 +21,14 @@ impl Circuit<Fp> for OverflowCheckCircuit {
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
         let col_d = meta.advice_column();
-        let carry_selector = meta.complex_selector();
+        let carry_selector = meta.selector();
+        let overflow_selector = meta.selector();
         let instance = meta.instance_column();
 
         OverFlowChip::configure(
             meta,
             [col_a, col_b_inv, col_b, col_c, col_d],
-            carry_selector,
+            [carry_selector, overflow_selector],
             instance,
         )
     }
@@ -41,55 +42,72 @@ impl Circuit<Fp> for OverflowCheckCircuit {
 
         let (prev_b, prev_c, prev_d) =
             chip.assign_first_row(layouter.namespace(|| "load first row"))?;
-        println!("prev_b: {:?}", prev_b);
-        println!("prev_c: {:?}", prev_c);
-        println!("prev_d: {:?}", prev_d);
+
         let (b, c, d) = chip.assign_advice_row(
             layouter.namespace(|| "load row"),
             self.a,
             prev_b.clone(),
             prev_c.clone(),
-            prev_d,
+            prev_d.clone(),
         )?;
 
-        println!("updated b: {:?}", b);
-        println!("updated c: {:?}", c);
-        println!("updated d: {:?}", d);
-
         // check computation result
-        chip.expose_public(layouter.namespace(|| "carry check"), &b, 2)?;
-        chip.expose_public(layouter.namespace(|| "remain check"), &c, 3)?;
-        chip.expose_public(layouter.namespace(|| "remain check"), &d, 4)?;
+        chip.expose_public(layouter.namespace(|| "overflow check"), &b, 2)?;
+        chip.expose_public(layouter.namespace(|| "sum_high check"), &c, 3)?;
+        chip.expose_public(layouter.namespace(|| "sum_low check"), &d, 4)?;
         Ok(())
     }
 }
 
 mod tests {
+    use std::panic;
     use super::OverflowCheckCircuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
-    fn test_overflow_check() {
+    fn test_none_overflow_case() {
         let k = 4;
 
         // a: new value
-        // public_input[0]: x * 2^16
-        // public_input[1]: x * 2^0
-        //
-        let a = Value::known(Fp::from((1 << 32) + 3));
+        let a = Value::known(Fp::from((1 << 16) + 3));
         let public_inputs = vec![
-            // initiali value
+            // initial values for A[3], A[4], last two columns
             Fp::from(0),
             Fp::from((1 << 16) - 2),
-
+            //
             // checking value
-            Fp::from(1),
-            Fp::from(1),
-            Fp::from(1),
-        ]; // initial accumulated values
+            Fp::from(0), // 2^32 <- 0 means not overflowed
+            Fp::from(2), // 2^16
+            Fp::from(1), // 2^0
+        ];
 
         let circuit = OverflowCheckCircuit { a };
         let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
         prover.assert_satisfied();
         assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_overflow_case() {
+        let k = 4;
+
+        // a: new value
+        let a = Value::known(Fp::from((1 << 32) + 2));
+        let public_inputs = vec![
+            // initial values for A[3], A[4], last two columns
+            Fp::from(0),             // 0 * 2^16
+            Fp::from((1 << 16) - 1), // only for testing, over 2^16 is not allowed on accumulated columns
+            //
+            // checking value
+            Fp::from(1), // 2^32 <- not 0 means overflowed
+            Fp::from(1), // 2^16
+            Fp::from(1), // 2^0
+        ];
+
+        let circuit = OverflowCheckCircuit { a };
+        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+
+        // TODO: should check panic message
+        let panic_result = panic::catch_unwind(|| prover.assert_satisfied());
+        assert!(panic_result.is_err());
     }
 }
