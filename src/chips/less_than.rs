@@ -75,7 +75,7 @@ impl<F: FieldExt> LessThanChip<F> {
                 // enable selector 
                 self.config.q_selector.enable(&mut region, 0)?;
 
-                for i in 0..20 {
+                for i in 0..4 {
                     // Load Advice lookup table with Instance lookup table values.
                     region.assign_advice_from_instance(
                         || "Advice from instance tables",

@@ -49,15 +49,22 @@ mod tests {
         let k = 4;
 
         // initate value
-        let value = Value::known(Fp::from(3));
+        let value = Value::known(Fp::from(2));
 
         let circuit = MyCircuit::<Fp> {
             input: value
         };
 
-        let pub_inputs = vec![Fp::from(0), Fp::from(1), Fp::from(2), Fp::from(3)];
+        let pub_inputs = vec![Fp::from(0), Fp::from(1), Fp::from(2)];
 
         let prover = MockProver::run(k, &circuit, vec![pub_inputs]).unwrap();
         prover.assert_satisfied();
+
+        let invalid_pub_inputs = vec![Fp::from(0), Fp::from(1)];
+
+        let invalid_prover = MockProver::run(k, &circuit, vec![invalid_pub_inputs]).unwrap();
+
+        assert!(invalid_prover.verify().is_err());
+
     }
 }
