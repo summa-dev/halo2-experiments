@@ -283,6 +283,8 @@ Considering an example where `lhs = 10` and `rhs = 5` and N_BYTES is 1. Range wo
 
 The [`less_than_v2` circuit](./src/circuits/less_than_v2.rs) contains the instruction on how to use the LessThan Chip in a higher level circuit. The only added gate is that the `check` value in the advice column of the higher level circuit (which is the expected result of the comparison) should be equal to the `lt` value in the advice column of the LessThan Chip.
 
+Lastly, let's consider a case where lhs lies outside the range. For example `lhs = 1` and `rhs = 257` and N_BYTES is 1. Diff is a single advice column but it can't represent the value 256 in 8 bits!
+
 TO DO: 
 - [ ] Add utils - create bool_check component for that
 - [ ] Check whether it is possible to import it from the zkevm circuits lib.
