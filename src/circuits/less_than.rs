@@ -33,7 +33,7 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
         let chip = LessThanChip::<F>::construct(config);
 
         // assign value to the chip
-        chip.assign(layouter.namespace(|| "init table"), self.input);
+        let _ = chip.assign(layouter.namespace(|| "init table"), self.input);
 
         Ok(())
     }
@@ -46,23 +46,36 @@ mod tests {
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     #[test]
     fn test_less_than_2() {
-        let k = 4;
+        let k = 10;
 
         // initate value
-        let value = Value::known(Fp::from(2));
+        let value = Value::known(Fp::from(755));
 
         let circuit = MyCircuit::<Fp> {
             input: value
         };
 
-        let pub_inputs = vec![Fp::from(0), Fp::from(1), Fp::from(2)];
+        let target = 800;
 
+        // define public inputs looping from target to 0 and adding each value to pub_inputs vector
+        let mut pub_inputs = vec![];
+        for i in 0..target {
+            pub_inputs.push(Fp::from(i));
+        }
+
+        // should verify as value is less than target
         let prover = MockProver::run(k, &circuit, vec![pub_inputs]).unwrap();
         prover.assert_satisfied();
 
-        let invalid_pub_inputs = vec![Fp::from(0), Fp::from(1)];
+        // shouldn't verify as value is greater than target
+        let target_2 = 754;
 
-        let invalid_prover = MockProver::run(k, &circuit, vec![invalid_pub_inputs]).unwrap();
+        let mut pub_inputs_2 = vec![];
+        for i in 0..target_2 {
+            pub_inputs_2.push(Fp::from(i));
+        }
+
+        let invalid_prover = MockProver::run(k, &circuit, vec![pub_inputs_2]).unwrap();
 
         assert!(invalid_prover.verify().is_err());
 

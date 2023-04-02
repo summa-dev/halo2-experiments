@@ -241,11 +241,59 @@ TO DO:
 - [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
 - [x] Add 2 public inputs to merkle_v1
 
-# Experiment 9 - LessEq Chip with Dynamic Lookup Table V1
+# Experiment 9 - LessThan Chip with Dynamic Lookup Table V1
 
+This Chip takes an input inside the input column advice. Say that we want to check if the input is less than 5. The instance column will be loaded with the values 0, 1, 2, 3, 4. The chip will then copy each value contained in the instance column to an `advice_table` advice column. The chip set a constraint on input to be less than 5 by creating a dynamic lookup check between the input and the `advice_table` column. If the input is less than 5, then the lookup will be successful and the constraint will be satisfied.
+
+The dynamic constraint is set using the `lookup_any` API. The dynamic caracteristic is needed to let the prover add the value to compare `input` with at witness generation time.
 
 TO DO:
 - [x] Make it generic for Field F
+- [x] Describe it
+
+# Experiment 10 - LessThan Chip V2
+
+This LessThan Chip works similarly to the one defined inside the [ZK-evm circuits gadgets](https://github.com/privacy-scaling-explorations/zkevm-circuits/blob/main/gadgets/src/less_than.rs). The LessThan Chip takes two values that are part of the witness (`lhs` and `rhs`) and returns 1 if `lhs < rhs` and 0 otherwise.
+
+### Configuration
+
+The LessThan Chip Configuration contains: 
+
+- 1 advice column `lt` that denotes the result of the comparison: 1 if `lhs < rhs` and 0 otherwise
+- An array of `diff` advice columns of length N_BYTES. It is basically the difference between `lhs` and `rhs` expressed in 8-bit chunks.
+- An field element `range` that denotes the range in which both `lhs` and `rhs` are expected to be. This is calculated as `2^N_BYTES * 8` where `N_BYTES` is the number of bytes that we want to use to represent the values `lhs` and `rhs`.
+
+The configure function takes as input the lhs and rhs virtual cells from a higher level chip and enforces the following gate:
+
+`lhs - rhs - diff + (lt * range) = 0`
+
+The assignment function takes as input the lhs and rhs values and assigns the values to the columns such that:
+
+- `lhs < rhs` bool is assigned to the `lt` advice column
+- if `lhs < rhs`, `lhs - rhs + range` is assigned to the `diff` advice columns
+- else `lhs - rhs` is assigned to the `diff` advice columns
+
+Now the custom gate should make more sense. Considering an example where `lhs = 5` and `rhs = 10` and N_BYTES is 1. Range would be 256 and diff would be a single advice column containing the value 251. The gate would be:
+
+    `5 - 10 - 251 + (1 * 256) = 0`
+
+Considering an example where `lhs = 10` and `rhs = 5` and N_BYTES is 1. Range would be 256 and diff would be a single advice column containing the value 5. The gate would be:
+
+    `10 - 5 - 5 + (0 * 256) = 0`
+
+The [`less_than_v2` circuit](./src/circuits/less_than_v2.rs) contains the instruction on how to use the LessThan Chip in a higher level circuit. The only added gate is that the `check` value in the advice column of the higher level circuit (which is the expected result of the comparison) should be equal to the `lt` value in the advice column of the LessThan Chip.
+
+TO DO: 
+- [ ] Add utils - create bool_check component for that
+- [ ] Check whether it is possible to import it from the zkevm circuits lib.
+- [ ] What are expressions?
+- [ ] Implement range check for diff chunks
+
+
+
+
+
+
 
 
 

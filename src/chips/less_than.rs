@@ -44,7 +44,7 @@ impl<F: FieldExt> LessThanChip<F> {
         // Dynamic lookup check
         // TO DO: does it mean that we looking up input inside advice_table?
         meta.lookup_any(
-            "dynamic lookup range check", 
+            "dynamic lookup check", 
             |meta| {
                 let input = meta.query_advice(input, Rotation::cur());
                 let advice_table = meta.query_advice(advice_table, Rotation::cur());
@@ -67,8 +67,8 @@ impl<F: FieldExt> LessThanChip<F> {
         layouter.assign_region(
             || "less than assignment",
             |mut region| {
-
-                for i in 0..4 {
+            
+                for i in 0..1000 {
                     // Load Advice lookup table with Instance lookup table values.
                     region.assign_advice_from_instance(
                         || "Advice from instance tables",
