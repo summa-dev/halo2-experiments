@@ -286,10 +286,11 @@ The [`less_than_v2` circuit](./src/circuits/less_than_v2.rs) contains the instru
 Lastly, let's consider a case where lhs lies outside the range. For example `lhs = 1` and `rhs = 257` and N_BYTES is 1. Diff is a single advice column but it can't represent the value 256 in 8 bits!
 
 TO DO: 
-- [ ] Add utils - create bool_check component for that
-- [ ] Check whether it is possible to import it from the zkevm circuits lib.
-- [ ] What are expressions?
+- [ ] Understand the whole functioning 
 - [ ] Implement range check for diff chunks
+- [x] Check whether it is possible to import it from the zkevm circuits lib.
+- [ ] What are expressions?
+- [ ] Need to enforce the LT expression to be equal to 1 on a higher-level circuit!
 
 
 

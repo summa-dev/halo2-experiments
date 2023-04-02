@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
+use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
+use eth_types::Field;
 
-use super::super::chips::less_than_v2::{LtChip, LtConfig};
-
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, poly::Rotation};
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Default)]
 // define circuit struct using array of usernames and balances
@@ -21,7 +21,7 @@ struct TestCircuitConfig<F> {
     lt: LtConfig<F, 8>,
 }
 
-impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
+impl<F: Field> Circuit<F> for MyCircuit<F> {
     type Config = TestCircuitConfig<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -68,6 +68,7 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
         config: Self::Config,
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
+
         let chip = LtChip::construct(config.lt);
 
         layouter.assign_region(
@@ -108,7 +109,7 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
 mod tests {
 
     use super::MyCircuit;
-    use halo2_proofs::{dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_proofs::{dev::MockProver, halo2curves::bn256::Fr as Fp};
     use std::marker::PhantomData;
 
     #[test]
