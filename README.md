@@ -249,9 +249,9 @@ Allowing the addition of new values to previously accumulated amounts into two c
 Circuit looks like this,
 
 | - | value  | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
-| - | ----      | ---      |   ---      | --| 
+| - | ----      | ---      |   ---      | --|
 | 0 | - | 0 |  0xffff | 0 |
-| 1 | 0x1 | 0x1 |  0 | 0xffff |  
+| 1 | 0x1 | 0x1 |  0 | 0xffff |
 | 2 | - | - | - | 0x1 |
 | 3 | - | - | - | 0 |
 
@@ -280,11 +280,11 @@ Allowing the addition of new values to previously accumulated amounts into two c
 Circuit looks like this
 
 | - | value | acc_hi_inv | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
-| - | ----  | ---   | ---      |   ---      | --| 
+| - | ----  | ---   | ---      |   ---      | --|
 | 0 | - | - |  0 |  0xfffe | 0x1 |
-| 2 | 0x1 | * |  0 | 0xffff | 0xfffe |  
-| 3 | - | - | - | - | 0x0 |
-| 4 | - | - | - | - | 0x1 |
+| 1 | 0x1 | * |  0 | 0xffff | 0xfffe |
+| 2 | - | - | - | - | 0x0 |
+| 3 | - | - | - | - | 0x1 |
 
 ### Configuration 
 
@@ -297,3 +297,38 @@ the addition constraint like below.
 
 ```
 
+# Experiment 11 - Overflow Check
+
+This chip implemented an overflow checking for columns of the accumulation amount of assets.
+There is an extra column for accumulating value. the column be used for inverting a number in the overflow column.
+
+There are two selectors in this chip.
+- 'add_carry_selector': toggle sum of new value in 'a' column and accumulated value.
+- 'overflow_check_selector': toggle check to see if the sum in the 'sum_overflow' column equals zero.
+
+for checking if a number is zero in the 'sum_overflow' column, activate 'is_zero' chip.<br>
+The code for the 'is_zero' chip was taken from the "halo2-example" repository.
+
+There are two tests for 'overflow circuit'.
+
+- None overflow case
+    | - | value | sum_overflow_inv | sum_overflow | sum_hi(x * 2^16)  | sum_lo(x * 2^0) | instance  |
+    | - | - | - | - | - | - | - |
+    | 0 | - | - | - |  0 |  0xfffe | 0 |
+    | 1 | 0x1_0003 | * | * |  0x2 | 0x1 | 0xfffe |
+    | 2 | - | - | - | - | - | 0x2 |
+    | 3 | - | - | - | - | - | 0x1 |
+
+At row 1, We can calculated 'acc_hi' has 0x20000 value. and 'sum_lo' is 0x1 value. it is matched a sum of 0x1_0003 in 'value' column at row 1 and 0xfffe in 'sum_lo' at row 0.
+we may strict a number more than or equal '2^16' in 'value' column. In here, we used more than '2^16' for testing.
+
+- Overflow case
+    | - | value | sum_overflow_inv | sum_overflow | sum_hi(x * 2^16)  | sum_lo(x * 2^0) | instance  |
+    | - | - | - | - | - | - | - |
+    | 0 | - | - | - |  0 |  0xfffe | 0 |
+    | 1 | 0x1_0000_0002 | * | 0x1 |  0x1 | 0x1 | 0xffff |
+    | 2 | - | - | - | - | - | 0x1 |
+    | 3 | - | - | - | - | - | 0x1 |
+    | 4 | - | - | - | - | - | 0x1 |
+
+In this case, addition value is more than 2^32. so, the circuit got panic with this input due to 'is_zero' chip.
