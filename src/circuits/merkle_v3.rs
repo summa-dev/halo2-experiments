@@ -1,22 +1,22 @@
 use super::super::chips::merkle_v3::{MerkleTreeV3Chip, MerkleTreeV3Config};
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
+use halo2_proofs::{circuit::*, arithmetic::FieldExt, plonk::*};
 
 #[derive(Default)]
-struct MerkleTreeV3Circuit {
-    pub leaf: Value<Fp>,
-    pub path_elements: Vec<Value<Fp>>,
-    pub path_indices: Vec<Value<Fp>>,
+struct MerkleTreeV3Circuit <F: FieldExt>{
+    pub leaf: Value<F>,
+    pub path_elements: Vec<Value<F>>,
+    pub path_indices: Vec<Value<F>>,
 }
 
-impl Circuit<Fp> for MerkleTreeV3Circuit {
-    type Config = MerkleTreeV3Config;
+impl <F:FieldExt> Circuit<F> for MerkleTreeV3Circuit<F> {
+    type Config = MerkleTreeV3Config<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         // config for the merkle tree chip
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
@@ -29,7 +29,7 @@ impl Circuit<Fp> for MerkleTreeV3Circuit {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = MerkleTreeV3Chip::construct(config);
         let leaf_cell = chip.assing_leaf(layouter.namespace(|| "assign leaf"), self.leaf)?;

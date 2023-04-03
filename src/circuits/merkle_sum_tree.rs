@@ -1,25 +1,25 @@
 use super::super::chips::merkle_sum_tree::{MerkleSumTreeChip, MerkleSumTreeConfig};
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, plonk::*, arithmetic::FieldExt};
 
 #[derive(Default)]
-struct MerkleSumTreeCircuit {
-    pub leaf_hash: Value<Fp>,
-    pub leaf_balance: Value<Fp>,
-    pub path_element_hashes: Vec<Value<Fp>>,
-    pub path_element_balances: Vec<Value<Fp>>,
-    pub path_indices: Vec<Value<Fp>>,
+struct MerkleSumTreeCircuit <F: FieldExt> {
+    pub leaf_hash: Value<F>,
+    pub leaf_balance: Value<F>,
+    pub path_element_hashes: Vec<Value<F>>,
+    pub path_element_balances: Vec<Value<F>>,
+    pub path_indices: Vec<Value<F>>,
 }
 
-impl Circuit<Fp> for MerkleSumTreeCircuit {
+impl <F:FieldExt> Circuit<F> for MerkleSumTreeCircuit<F> {
 
-    type Config = MerkleSumTreeConfig;
+    type Config = MerkleSumTreeConfig<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
 
         // config columns for the merkle tree chip
         let col_a = meta.advice_column();
@@ -40,7 +40,7 @@ impl Circuit<Fp> for MerkleSumTreeCircuit {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
 
         let chip = MerkleSumTreeChip::construct(config);
@@ -107,7 +107,7 @@ mod tests {
                 message = [elements[i].hash, elements[i].balance, digest.hash, digest.balance];
             }
 
-            digest.hash = poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
+            digest.hash = poseidon::Hash::<_, MySpec<Fp, WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
                 .hash(message);
 
             digest.balance = digest.balance + elements[i].balance;
@@ -116,7 +116,7 @@ mod tests {
         digest
     }
 
-    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<u64>) -> MerkleSumTreeCircuit{
+    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<u64>) -> MerkleSumTreeCircuit<Fp>{
 
         let element_hashes: Vec<Value<Fp>> = elements
         .iter()

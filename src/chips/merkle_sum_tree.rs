@@ -1,35 +1,35 @@
 use super::poseidon::hash::{PoseidonChip, PoseidonConfig};
 use super::poseidon::spec::MySpec;
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
+use halo2_proofs::{arithmetic::FieldExt, circuit::*,plonk::*, poly::Rotation};
 
 const WIDTH: usize = 5;
 const RATE: usize = 4;
 const L: usize = 4;
 
 #[derive(Debug, Clone)]
-pub struct MerkleSumTreeConfig {
+pub struct MerkleSumTreeConfig <F: FieldExt> {
     pub advice: [Column<Advice>; 5],
     pub bool_selector: Selector,
     pub swap_selector: Selector,
     pub sum_selector: Selector,
     pub instance: Column<Instance>,
-    pub poseidon_config: PoseidonConfig<WIDTH, RATE, L>,
+    pub poseidon_config: PoseidonConfig<F, WIDTH, RATE, L>,
 }
 #[derive(Debug, Clone)]
-pub struct MerkleSumTreeChip {
-    config: MerkleSumTreeConfig,
+pub struct MerkleSumTreeChip <F: FieldExt>{
+    config: MerkleSumTreeConfig<F>,
 }
 
-impl MerkleSumTreeChip {
-    pub fn construct(config: MerkleSumTreeConfig) -> Self {
+impl <F: FieldExt> MerkleSumTreeChip<F> {
+    pub fn construct(config: MerkleSumTreeConfig<F>) -> Self {
         Self { config }
     }
 
     pub fn configure(
-        meta: &mut ConstraintSystem<Fp>,
+        meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 5],
         instance: Column<Instance>,
-    ) -> MerkleSumTreeConfig {
+    ) -> MerkleSumTreeConfig<F> {
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
@@ -57,7 +57,7 @@ impl MerkleSumTreeChip {
         meta.create_gate("bool constraint", |meta| {
             let s = meta.query_selector(bool_selector);
             let e = meta.query_advice(col_e, Rotation::cur());
-            vec![s * e.clone() * (Expression::Constant(Fp::from(1)) - e)]
+            vec![s * e.clone() * (Expression::Constant(F::from(1)) - e)]
         });
 
         // Enforces that if the swap bit (e) is on, l1=c, l2=d, r1=a, and r2=b. Otherwise, l1=a, l2=b, r1=c, and r2=d.
@@ -75,10 +75,10 @@ impl MerkleSumTreeChip {
             let r2 = meta.query_advice(col_d, Rotation::next());
 
             vec![
-                s.clone() * (e.clone() * Expression::Constant(Fp::from(2)) * (c.clone() - a.clone())
+                s.clone() * (e.clone() * Expression::Constant(F::from(2)) * (c.clone() - a.clone())
                     - (l1 - a)
                     - (c - r1)),
-                s * (e * Expression::Constant(Fp::from(2)) * (d.clone() - b.clone())
+                s * (e * Expression::Constant(F::from(2)) * (d.clone() - b.clone())
                     - (l2 - b)
                     - (d - r2)),
             ]
@@ -96,7 +96,7 @@ impl MerkleSumTreeChip {
         // TO DO: Understand if this is intantiated correctly
         let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
-        let poseidon_config = PoseidonChip::<MySpec<WIDTH, RATE>, WIDTH, RATE, L>::configure(
+        let poseidon_config = PoseidonChip::<F, MySpec<F, WIDTH, RATE>, WIDTH, RATE, L>::configure(
             meta,
             hash_inputs
         );
@@ -113,10 +113,10 @@ impl MerkleSumTreeChip {
 
     pub fn assing_leaf_hash_and_balance(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        leaf_hash: Value<Fp>,
-        leaf_balance: Value<Fp>,
-    ) -> Result<(AssignedCell<Fp, Fp>, AssignedCell<Fp, Fp>), Error> {
+        mut layouter: impl Layouter<F>,
+        leaf_hash: Value<F>,
+        leaf_balance: Value<F>,
+    ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> {
         let leaf_hash_cell = layouter.assign_region(
             || "assign leaf hash",
             |mut region| {
@@ -136,13 +136,13 @@ impl MerkleSumTreeChip {
 
     pub fn merkle_prove_layer(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        prev_hash_cell: &AssignedCell<Fp, Fp>,
-        prev_balance_cell: &AssignedCell<Fp, Fp>,
-        element_hash: Value<Fp>,
-        element_balance: Value<Fp>,
-        index: Value<Fp>,
-    ) -> Result<(AssignedCell<Fp, Fp>, AssignedCell<Fp, Fp>), Error> {
+        mut layouter: impl Layouter<F>,
+        prev_hash_cell: &AssignedCell<F, F>,
+        prev_balance_cell: &AssignedCell<F, F>,
+        element_hash: Value<F>,
+        element_balance: Value<F>,
+        index: Value<F>,
+    ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> {
         let (left_hash, left_balance, right_hash, right_balance, computed_sum_cell) = layouter
             .assign_region(
                 || "merkle prove layer",
@@ -195,7 +195,7 @@ impl MerkleSumTreeChip {
                         element_balance,
                     );
                     index.map(|x| {
-                        (l1, l2, r1, r2) = if x == Fp::zero() {
+                        (l1, l2, r1, r2) = if x == F::zero() {
                             (l1, l2, r1, r2)
                         } else {
                             (r1, r2, l1, l2)
@@ -231,7 +231,7 @@ impl MerkleSumTreeChip {
                         || r2,
                     )?;
 
-                    let computed_sum = left_balance.value().zip(right_balance.value()).map(|(a, b)| a + b);
+                    let computed_sum = left_balance.value().zip(right_balance.value()).map(|(a, b)| *a + b);
 
                     // Now we can assign the sum result to the computed_sum cell.
                     // TO DO: is it constrained correctly?
@@ -253,7 +253,7 @@ impl MerkleSumTreeChip {
             )?;
 
         // instantiate the poseidon_chip
-        let poseidon_chip = PoseidonChip::<MySpec<WIDTH, RATE>, WIDTH, RATE, L>::construct(
+        let poseidon_chip = PoseidonChip::<F, MySpec<F, WIDTH, RATE>, WIDTH, RATE, L>::construct(
             self.config.poseidon_config.clone(),
         );
 
@@ -272,8 +272,8 @@ impl MerkleSumTreeChip {
     // Enforce permutation check between input cell and instance column at row passed as input
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        cell: &AssignedCell<Fp, Fp>,
+        mut layouter: impl Layouter<F>,
+        cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(cell.cell(), self.config.instance, row)

@@ -1,30 +1,31 @@
 use super::super::chips::poseidon::hash_with_instance::{PoseidonChip, PoseidonConfig};
 use halo2_gadgets::poseidon::primitives::*;
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
+use halo2_proofs::{circuit::*, arithmetic::FieldExt, plonk::*};
 use std::marker::PhantomData;
 
 struct PoseidonCircuit<
-    S: Spec<Fp, WIDTH, RATE>,
+    F: FieldExt,
+    S: Spec<F, WIDTH, RATE>,
     const WIDTH: usize,
     const RATE: usize,
     const L: usize,
 > {
-    hash_input: [Value<Fp>; L],
-    digest: Value<Fp>,
+    hash_input: [Value<F>; L],
+    digest: Value<F>,
     _spec: PhantomData<S>,
 }
 
-impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize> Circuit<Fp>
-    for PoseidonCircuit<S, WIDTH, RATE, L>
+impl<F:FieldExt, S: Spec<F, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: usize> Circuit<F>
+    for PoseidonCircuit<F, S, WIDTH, RATE, L>
 {
-    type Config = PoseidonConfig<WIDTH, RATE, L>;
+    type Config = PoseidonConfig<F, WIDTH, RATE, L>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self {
             hash_input: (0..L)
                 .map(|_i| Value::unknown())
-                .collect::<Vec<Value<Fp>>>()
+                .collect::<Vec<Value<F>>>()
                 .try_into()
                 .unwrap(),
             digest: Value::unknown(),
@@ -32,19 +33,19 @@ impl<S: Spec<Fp, WIDTH, RATE>, const WIDTH: usize, const RATE: usize, const L: u
         }
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> PoseidonConfig<WIDTH, RATE, L> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> PoseidonConfig<F, WIDTH, RATE, L> {
         let instance = meta.instance_column();
         let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
-        PoseidonChip::<S, WIDTH, RATE, L>::configure(meta, hash_inputs, instance)
+        PoseidonChip::<F, S, WIDTH, RATE, L>::configure(meta, hash_inputs, instance)
     }
 
     fn synthesize(
         &self,
-        config: PoseidonConfig<WIDTH, RATE, L>,
-        mut layouter: impl Layouter<Fp>,
+        config: PoseidonConfig<F, WIDTH, RATE, L>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
-        let poseidon_chip = PoseidonChip::<S, WIDTH, RATE, L>::construct(config);
+        let poseidon_chip = PoseidonChip::<F, S, WIDTH, RATE, L>::construct(config);
         let assigned_input_cells = poseidon_chip.load_private_inputs(
             layouter.namespace(|| "load private inputs"),
             self.hash_input,
@@ -85,10 +86,10 @@ mod tests {
 
         // compute the hash outside of the circuit
         let digest =
-            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
+            poseidon::Hash::<_, MySpec<Fp, WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
                 .hash(hash_input);
 
-        let circuit = PoseidonCircuit::<MySpec<WIDTH, RATE>, WIDTH, RATE, L> {
+        let circuit = PoseidonCircuit::<Fp, MySpec<Fp, WIDTH, RATE>, WIDTH, RATE, L> {
             hash_input: hash_input.map(Value::known),
             digest: Value::known(digest),
             _spec: PhantomData,
