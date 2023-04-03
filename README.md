@@ -306,6 +306,10 @@ The only difference here is the additional constraint added at line 61
             vec![..., q_enable * (Expression::Constant(F::from(1)) - check)]
 ```
 
+The Circuit built on top of that chip (`circuits/less_than_v3.rs`) also makes use of the `hash_v1` chip. This is just an experiment to remark that you can reuse the generic Field trait from `eth_types::{Field}` to instantiate a chip that is generic on a Field of trait F from halo2_proofs::arithmetic::FieldExt. That's because the Field trait is a wrapper around the FieldExt type (and other 2 types) => https://github.com/privacy-scaling-explorations/zkevm-circuits/blob/4cfccfa6c3b251284ff61eeb907d548d59206753/eth-types/src/lib.rs#LL51C72-L51C72. 
+
+It means that you can use the eth_field::Field type to instantiate a chip that is generic on a F that implements the FieldExt trait.
+
 
 
 

@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
-use eth_types::Field;
+use eth_types::{Field};
+use super::super::chips::hash_v1::{Hash1Chip, Hash1Config};
 
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
@@ -12,6 +13,7 @@ struct MyCircuit<F> {
     pub check: bool,
     _marker: PhantomData<F>
 }
+
 #[derive(Clone, Debug)]
 struct TestCircuitConfig<F> {
     q_enable: Selector,
@@ -19,6 +21,7 @@ struct TestCircuitConfig<F> {
     value_r: Column<Advice>,
     check: Column<Advice>,
     lt: LtConfig<F, 8>,
+    hash_config: Hash1Config,
 }
 
 impl<F: Field> Circuit<F> for MyCircuit<F> {
@@ -34,6 +37,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         let value_l = meta.advice_column();
         let value_r = meta.advice_column();
         let check = meta.advice_column();
+        let instance = meta.instance_column();
 
         let lt = LtChip::configure(
             meta,
@@ -42,12 +46,16 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
             |meta| meta.query_advice(value_r, Rotation::cur()),
         );
 
+        let hash_config = Hash1Chip::configure(meta, [value_l, value_r], instance);
+
+
         let config = Self::Config {
             q_enable,
             value_l,
             value_r,
             check,
             lt,
+            hash_config
         };
 
         meta.create_gate("verifies that `check` current confif = is_lt from LtChip ", |meta| {
@@ -71,9 +79,10 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
 
-        let chip = LtChip::construct(config.lt);
+        let lt_chip = LtChip::construct(config.lt);
+        let hash_chip : Hash1Chip<F> = Hash1Chip::construct(config.hash_config);
 
-        layouter.assign_region(
+        let _ = layouter.assign_region(
             || "witness",
             |mut region| {
                 region.assign_advice(
@@ -99,11 +108,17 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
 
                 config.q_enable.enable(&mut region, 0)?;
 
-                chip.assign(&mut region, 0, F::from(self.value_l), F::from(self.value_r))?;
+                lt_chip.assign(&mut region, 0, F::from(self.value_l), F::from(self.value_r))?;
 
                 Ok(())
             },
-        )
+        );
+
+        let b = hash_chip.assign_advice_row(layouter.namespace(|| "load row"), Value::known(F::from(self.value_l)))?;
+        hash_chip.expose_public(layouter.namespace(|| "hash output check"), &b, 0)?;
+
+        Ok(())
+
     }
 }
 
@@ -130,8 +145,10 @@ mod tests {
             _marker: PhantomData,
         };
 
+        let public_input_1 = vec![Fp::from(10)];
+
         // Test 1 - should be valid
-        let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_input_1.clone()]).unwrap();
         prover.assert_satisfied();
 
         // switch value_l and value_r
@@ -139,15 +156,14 @@ mod tests {
         circuit.value_r = 5;
 
         // Test 2 - should be invalid
-        let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_input_1.clone()]).unwrap();
         assert!(prover.verify().is_err());
-
 
         // let check to be false
         circuit.check = false;
 
         // Test 3 - should be invalid! as we are now forcing the check to be true
-        let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_input_1]).unwrap();
         assert!(prover.verify().is_err());
 
     }
