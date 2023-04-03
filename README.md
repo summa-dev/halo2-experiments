@@ -300,11 +300,11 @@ TO DO:
 
 This experiment makes use of the same chip as in V2. The only difference here is that on the higher level circuit level we impose the LessThan value to be constrained to 1.
 
-The only difference here is the additional constraint added at line 61
+~~The only difference here is the additional constraint added at line 61~~
 
-```rust
-            vec![..., q_enable * (Expression::Constant(F::from(1)) - check)]
-```
+~~`vec![..., q_enable * (Expression::Constant(F::from(1)) - check)]`~~
+
+This property is constrained by assigning 1 to the check in the synthesize function. The constraint set inside the top level circuit checks that check is equal to lt in the child chip. 
 
 The Circuit built on top of that chip (`circuits/less_than_v3.rs`) also makes use of the `hash_v1` chip. This is just an experiment to remark that you can reuse the generic Field trait from `eth_types::{Field}` to instantiate a chip that is generic on a Field of trait F from halo2_proofs::arithmetic::FieldExt. That's because the Field trait is a wrapper around the FieldExt type (and other 2 types) => https://github.com/privacy-scaling-explorations/zkevm-circuits/blob/4cfccfa6c3b251284ff61eeb907d548d59206753/eth-types/src/lib.rs#LL51C72-L51C72. 
 

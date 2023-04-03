@@ -65,8 +65,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
             let check = meta.query_advice(config.check, Rotation::cur());
 
             // verifies that check is equal to lt in the child chip
-            // verifies that check is equal to 1
-            vec![q_enable.clone() * (config.lt.is_lt(meta, None) - check.clone()), q_enable * (Expression::Constant(F::from(1)) - check)]
+            vec![q_enable * (config.lt.is_lt(meta, None) - check)]
         });
 
         config
@@ -103,7 +102,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
                     || "check",
                     config.check,
                     0,
-                    || Value::known(F::from(self.check as u64)),
+                    || Value::known(F::from(1)),
                 )?;
 
                 config.q_enable.enable(&mut region, 0)?;
