@@ -124,10 +124,10 @@ mod tests {
         const L: usize = 4;
 
         let digest =
-            poseidon::Hash::<_, MySpec<WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
+            poseidon::Hash::<_, MySpec<Fp, WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
                 .hash(hash_input);
 
-        let circuit = PoseidonCircuit::<MySpec<WIDTH, RATE>, WIDTH, RATE, L> {
+        let circuit = PoseidonCircuit::<Fp, MySpec<Fp, WIDTH, RATE>, WIDTH, RATE, L> {
             hash_input: hash_input.map(|x| Value::known(x)),
             digest: Value::known(digest),
             _spec: PhantomData,
