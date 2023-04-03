@@ -14,6 +14,8 @@ List of available experiments:
 - [Experiment 6 - Merkle Tree V2](#experiment-6---merkle-tree-v2)
 - [Experiment 7 - Poseidon Hash](#experiment-7---poseidon-hash)
 - [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
+- [Experiment 9 - LessThan Chip with Dynamic Lookup Table V1](#experiment-9---lessthan-chip-with-dynamic-lookup-table-v1)
+- [Experiment 10 - LessThan Chip V2](#experiment-10---lessthan-chip-v2)
 
 # Experiment 1 - Inclusion Check
 
@@ -253,7 +255,7 @@ TO DO:
 
 # Experiment 10 - LessThan Chip V2
 
-This LessThan Chip works similarly to the one defined inside the [ZK-evm circuits gadgets](https://github.com/privacy-scaling-explorations/zkevm-circuits/blob/main/gadgets/src/less_than.rs). The LessThan Chip takes two values that are part of the witness (`lhs` and `rhs`) and returns 1 if `lhs < rhs` and 0 otherwise.
+This LessThan Chip is imported from the [ZK-evm circuits gadgets](https://github.com/privacy-scaling-explorations/zkevm-circuits/blob/main/gadgets/src/less_than.rs). The LessThan Chip takes two values that are part of the witness (`lhs` and `rhs`) and returns 1 if `lhs < rhs` and 0 otherwise.
 
 ### Configuration
 
@@ -267,11 +269,15 @@ The configure function takes as input the lhs and rhs virtual cells from a highe
 
 `lhs - rhs - diff + (lt * range) = 0`
 
+Note that the gate enforces inside this child chip, the constraint is dependent on the value of some cells passed from an higher level chip.
+
 The assignment function takes as input the lhs and rhs values and assigns the values to the columns such that:
 
 - `lhs < rhs` bool is assigned to the `lt` advice column
 - if `lhs < rhs`, `lhs - rhs + range` is assigned to the `diff` advice columns
 - else `lhs - rhs` is assigned to the `diff` advice columns
+
+Again, note that the assignment function doesn't take assigned value of type `Value<F>` but simple values of type `F` where F is a generic Field Element.
 
 Now the custom gate should make more sense. Considering an example where `lhs = 5` and `rhs = 10` and N_BYTES is 1. Range would be 256 and diff would be a single advice column containing the value 251. The gate would be:
 
@@ -286,13 +292,19 @@ The [`less_than_v2` circuit](./src/circuits/less_than_v2.rs) contains the instru
 Lastly, let's consider a case where lhs lies outside the range. For example `lhs = 1` and `rhs = 257` and N_BYTES is 1. Diff is a single advice column but it can't represent the value 256 in 8 bits!
 
 TO DO: 
-- [ ] Understand the whole functioning 
-- [ ] Implement range check for diff chunks
+- [x] Understand the whole functioning 
 - [x] Check whether it is possible to import it from the zkevm circuits lib.
-- [ ] What are expressions?
-- [ ] Need to enforce the LT expression to be equal to 1 on a higher-level circuit!
+- [x] Need to enforce the LT expression to be equal to 1 on a higher-level circuit!
 
+# Experiment 11 - LessThan Chip V3
 
+This experiment makes use of the same chip as in V2. The only difference here is that on the higher level circuit level we impose the LessThan value to be constrained to 1.
+
+The only difference here is the additional constraint added at line 61
+
+```rust
+            vec![..., q_enable * (Expression::Constant(F::from(1)) - check)]
+```
 
 
 

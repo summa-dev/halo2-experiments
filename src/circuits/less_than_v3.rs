@@ -56,7 +56,9 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
             // This verifies lt(value_l::cur, value_r::cur) is calculated correctly
             let check = meta.query_advice(config.check, Rotation::cur());
 
-            vec![q_enable * (config.lt.is_lt(meta, None) - check)]
+            // verifies that check is equal to lt in the child chip
+            // verifies that check is equal to 1
+            vec![q_enable.clone() * (config.lt.is_lt(meta, None) - check.clone()), q_enable * (Expression::Constant(F::from(1)) - check)]
         });
 
         config
@@ -113,7 +115,7 @@ mod tests {
     use std::marker::PhantomData;
 
     #[test]
-    fn test_less_than_2() {
+    fn test_less_than_3() {
         let k = 5;
 
         // initate usernames and balances array
@@ -144,9 +146,9 @@ mod tests {
         // let check to be false
         circuit.check = false;
 
-        // Test 3 - should be valid
+        // Test 3 - should be invalid! as we are now forcing the check to be true
         let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-        prover.assert_satisfied();
+        assert!(prover.verify().is_err());
 
     }
 }
