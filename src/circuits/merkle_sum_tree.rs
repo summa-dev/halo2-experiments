@@ -10,6 +10,7 @@ struct MerkleSumTreeCircuit <F: Field> {
     pub path_element_hashes: Vec<F>,
     pub path_element_balances: Vec<F>,
     pub path_indices: Vec<F>,
+    pub assets_sum: F,
     _marker: PhantomData<F>
 }
 
@@ -76,8 +77,13 @@ impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
             )?;
         }
 
+        // compute the sum of the merkle sum tree as sum of the leaf balance and the sum of the path elements balances
+        let computed_sum = self.leaf_balance + self.path_element_balances.iter().fold(F::zero(), |acc, x| acc + x);
+
+        // enforce computed sum to be less than the assets sum 
+        chip.enforce_less_than(layouter.namespace(|| "enforce less than"), &next_sum, computed_sum, self.assets_sum)?;
+
         chip.expose_public(layouter.namespace(|| "public root"), &next_hash, 2)?;
-        chip.expose_public(layouter.namespace(|| "public balance sum"), &next_sum, 3)?;
         Ok(())
     }
 }
@@ -106,9 +112,9 @@ mod tests {
         let mut message: [Fp; 4];
         for i in 0..k {
             if indices[i] == 0.into() {
-                message = [Fp::from(digest.hash), Fp::from(digest.balance), Fp::from(elements[i].hash), Fp::from(elements[i].balance)];
+                message = [digest.hash, digest.balance, elements[i].hash, elements[i].balance];
             } else {
-                message = [Fp::from(elements[i].hash), Fp::from(elements[i].balance), Fp::from(digest.hash), Fp::from(digest.balance)];
+                message = [elements[i].hash, elements[i].balance, digest.hash, digest.balance];
             }
 
             digest.hash = poseidon::Hash::<_, MySpec<Fp, WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
@@ -119,7 +125,7 @@ mod tests {
         digest
     }
 
-    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<Fp>) -> MerkleSumTreeCircuit<Fp>{
+    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<Fp>, assets_sum: Fp) -> MerkleSumTreeCircuit<Fp>{
 
         let element_hashes: Vec<Fp> = elements.iter().map(|node| node.hash).collect();
         let element_balances: Vec<Fp> = elements.iter().map(|node| node.balance).collect();
@@ -130,12 +136,13 @@ mod tests {
             path_element_hashes: element_hashes,
             path_element_balances: element_balances,
             path_indices: indices,
+            assets_sum,
             _marker: PhantomData,
         }
 
     }
 
-    fn setup() -> (Node, Vec<Node>, Vec<Fp>, Node) {
+    fn build_merkle_tree() -> (Node, Vec<Node>, Vec<Fp>, Node) {
 
         let leaf = Node {
             hash: Fp::from(10u64),
@@ -175,11 +182,13 @@ mod tests {
     #[test]
     fn test_valid_merkle_sum_tree() {
 
-        let (leaf, elements, indices, root) = setup();
+        let (leaf, elements, indices, root) = build_merkle_tree();
 
-        let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
+        let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
 
-        let circuit = instantiate_circuit(leaf, elements, indices);
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, assets_sum];
+
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
         let valid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
 
@@ -187,29 +196,15 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_root_balance() {
-
-        let (leaf, elements, indices, root) = setup();
-
-        let public_input = vec![leaf.hash, leaf.balance, root.hash, Fp::from(1000u64)];
-
-        let circuit = instantiate_circuit(leaf, elements, indices);
-
-        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
-
-        // error => Err([Equality constraint not satisfied by cell (Column('Advice', 4 - ), in Region 22 ('merkle prove layer') at offset 1), Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 3)])
-        // computed_sum (advice column[4]) != root.sum (instance column row 3)
-        assert!(invalid_prover.verify().is_err());
-    }
-
-    #[test]
     fn test_invalid_root_hash() {
 
-        let (leaf, elements, indices, root) = setup();
+        let (leaf, elements, indices, root) = build_merkle_tree();
 
-        let public_input = vec![leaf.hash, leaf.balance, Fp::from(1000u64), root.balance];
+        let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
 
-        let circuit = instantiate_circuit(leaf, elements, indices);
+        let public_input = vec![leaf.hash, leaf.balance, Fp::from(1000u64), assets_sum];
+
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
         let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
 
@@ -221,11 +216,13 @@ mod tests {
     #[test]
     fn test_invalid_leaf_hash() {
 
-        let (leaf, elements, indices, root) = setup();
+        let (leaf, elements, indices, root) = build_merkle_tree();
 
-        let public_input = vec![Fp::from(1000u64), leaf.balance, root.hash, root.balance];
+        let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
 
-        let circuit = instantiate_circuit(leaf, elements, indices);
+        let public_input = vec![Fp::from(1000u64), leaf.balance, root.hash, assets_sum];
+
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
         let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
 
@@ -238,11 +235,13 @@ mod tests {
     #[test]
     fn test_invalid_leaf_balance() {
 
-        let (leaf, elements, indices, root) = setup();
+        let (leaf, elements, indices, root) = build_merkle_tree();
 
-        let public_input = vec![leaf.hash, Fp::from(1000u64), root.hash, root.balance];
+        let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
 
-        let circuit = instantiate_circuit(leaf, elements, indices);
+        let public_input = vec![leaf.hash, Fp::from(1000u64), root.hash, assets_sum];
+
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
         let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
 
@@ -254,13 +253,15 @@ mod tests {
     #[test]
     fn test_non_binary_index() {
 
-        let (leaf, elements, mut indices, root) = setup();
+        let (leaf, elements, mut indices, root) = build_merkle_tree();
 
-        let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
+        let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, assets_sum];
 
         indices[0] = Fp::from(2);
 
-        let circuit = instantiate_circuit(leaf, elements, indices);
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
         let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
 
@@ -272,18 +273,48 @@ mod tests {
     #[test]
     fn test_swapping_index() {
 
-        let (leaf, elements, mut indices, root) = setup();
+        let (leaf, elements, mut indices, root) = build_merkle_tree();
 
-        let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
+        let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, assets_sum];
 
         indices[0] = Fp::from(1);
 
-        let circuit = instantiate_circuit(leaf, elements, indices);
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
         let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
 
         // error => Err([Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 2), Equality constraint not satisfied by cell (Column('Advice', 5 - ), in Region 26 ('permute state') at offset 36)])
         // computed_hash (advice column[5]) != root.hash (instance column row 2)
+        assert!(invalid_prover.verify().is_err());
+    }
+
+    #[test]
+    fn test_is_not_less_than() {
+
+        let (leaf, elements, indices, root) = build_merkle_tree();
+
+        let assets_sum = Fp::from(200u64); // less than liabilities sum (400)
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, assets_sum];
+
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
+
+        let invalid_prover = MockProver::run(10, &circuit, vec![public_input]).unwrap();
+
+        // error: constraint not satisfied
+        //   Cell layout in region 'enforce sum to be less than total assets':
+        //     | Offset | A2 | A11|
+        //     +--------+----+----+
+        //     |    0   | x0 | x1 | <--{ Gate 'verifies that `check` from current config equal to is_lt from LtChip ' applied here
+
+        //   Constraint '':
+        //     ((S10 * (1 - S10)) * (0x2 - S10)) * (x1 - x0) = 0
+
+        //   Assigned cell values:
+        //     x0 = 1
+        //     x1 = 0
         assert!(invalid_prover.verify().is_err());
     }
 
@@ -299,7 +330,7 @@ mod tests {
             .titled("Merkle Sum Tree Layout", ("sans-serif", 60))
             .unwrap();
 
-        let (leaf, elements, indices, _) = setup();
+        let (leaf, elements, indices, _) = build_merkle_tree();
 
         let circuit = instantiate_circuit(leaf, elements, indices);
 
