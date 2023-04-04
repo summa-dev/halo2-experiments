@@ -1,12 +1,15 @@
 use halo2_proofs::{
     halo2curves::bn256::{Fr as Fp, Bn256, G1Affine}, 
-    poly::kzg::{
+    poly::{
+        commitment::ParamsProver,
+        kzg::{
         commitment::{
             ParamsKZG,
-            KZGCommitmentScheme
+            KZGCommitmentScheme,
         },
         strategy::SingleStrategy,
         multiopen::{ProverSHPLONK, VerifierSHPLONK}
+        },
     },
     plonk::{
         create_proof, verify_proof, keygen_pk, keygen_vk, Circuit
@@ -22,9 +25,7 @@ pub fn full_prover <C: Circuit<Fp>> (
     public_input: &[Fp]
 ) {
 
-    let mut rng = OsRng;
-
-    let params = ParamsKZG::<Bn256>::setup(k, &mut rng);
+    let params = ParamsKZG::<Bn256>::setup(k, OsRng);
 
     let vk_time_start = Instant::now();
     let vk = keygen_vk(&params, &circuit).unwrap();
@@ -43,11 +44,12 @@ pub fn full_prover <C: Circuit<Fp>> (
         _,
         Blake2bWrite<Vec<u8>, G1Affine, Challenge255<G1Affine>>,
         _,
-    >(&params, &pk, &[circuit], &[&[public_input]], rng, &mut transcript)
+    >(&params, &pk, &[circuit], &[&[public_input]], OsRng, &mut transcript)
     .expect("prover should not fail");
     let proof = transcript.finalize();
     let proof_time = proof_time_start.elapsed();
 
+    let verifier_params = params.verifier_params();
     let verify_time_start = Instant::now();
     let strategy = SingleStrategy::new(&params);
     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
@@ -57,7 +59,7 @@ pub fn full_prover <C: Circuit<Fp>> (
         Challenge255<G1Affine>,
         Blake2bRead<&[u8], G1Affine, Challenge255<G1Affine>>,
         SingleStrategy<'_, Bn256>,
-    >(&params, pk.get_vk(), strategy, &[&[public_input]], &mut transcript)
+    >(verifier_params, pk.get_vk(), strategy, &[&[public_input]], &mut transcript)
     .is_ok());
     let verify_time = verify_time_start.elapsed();
 
