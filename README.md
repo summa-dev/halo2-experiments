@@ -332,3 +332,28 @@ we may strict a number more than or equal '2^16' in 'value' column. In here, we 
     | 4 | - | - | - | - | - | 0x1 |
 
 In this case, addition value is more than 2^32. so, the circuit got panic with this input due to 'is_zero' chip.
+
+# Experiment 12 - Overflow Check V2
+
+This chip supports a vector of values for adding values to accumulation columns. The size of the accumulation columns can be configured with a generic constant in the chip configuration. Each column can have double bytes(i.e 16bits) as maximum. The actual value of the column is shifted values by the position of accumulation columns. For example, let's assume six accumulation columns in a circuit. if there is 7 in right most column, means that `0x7` value has. but if there is 3 in left most columns, means that `0x3 << (16 * 5)` value has.
+
+Note that, the left most accumulation columns be used for checking overflow in this chip. It means that have to configure extra one more columns than maximum accumulation value. so if you trying to check over 128bits(8bytes), have to configure 9 columns in circuit.
+
+```Rust
+pub struct OverFlowCheckV2Config<const ACC_COLS: usize> {
+    pub update_value: Column<Advice>,
+    pub left_most_inv: Column<Advice>,
+    pub accumulate: [Column<Advice>; ACC_COLS],
+    pub instance: Column<Instance>,
+    pub is_zero: IsZeroConfig,
+    pub selector: [Selector; 2],
+}
+```
+
+In the test case, first accumulation value initialized with the array of `accumulate`. and add `value` with the accumulation columns at row 0 then assign values to the accumultion columns at row 0 in properly.
+
+- None overflow case
+    | - | value | left_most_inv | accumulte[0](x * 2^32) | accumulte[1](x * 2^16)  | accumulte[2](x * 2^0) | instance  |
+    | - | - | - | - | - | - | - |
+    | 0 | - | - | - |  0xfffe |  0xfffd | 0 |
+    | 1 | 0x4 | * | 0 |  0xffff | 0x1 | 0|
