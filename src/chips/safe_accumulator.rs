@@ -6,21 +6,23 @@ use super::utils::{decompose_bigInt_to_ubits, fp_to_big_uint, value_fp_to_big_ui
 use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
-pub struct OverflowCheckV2Config<const MAX_BITS: u8, const ACC_COLS: usize> {
+pub struct SafeAccumulatorConfig<const MAX_BITS: u8, const ACC_COLS: usize> {
     pub update_value: Column<Advice>,
+    pub left_most_inv: Column<Advice>,
     pub add_carries: [Column<Advice>; ACC_COLS],
     pub accumulate: [Column<Advice>; ACC_COLS],
     pub instance: Column<Instance>,
+    pub is_zero: IsZeroConfig,
     pub selector: [Selector; 2],
 }
 
 #[derive(Debug, Clone)]
-pub struct OverflowChipV2<const MAX_BITS: u8, const ACC_COLS: usize> {
-    config: OverflowCheckV2Config<MAX_BITS, ACC_COLS>,
+pub struct SafeACcumulatorChip<const MAX_BITS: u8, const ACC_COLS: usize> {
+    config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS>,
 }
 
-impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COLS> {
-    pub fn construct(config: OverflowCheckV2Config<MAX_BITS, ACC_COLS>) -> Self {
+impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, ACC_COLS> {
+    pub fn construct(config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS>) -> Self {
         Self { config }
     }
 
@@ -32,7 +34,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
         accumulate: [Column<Advice>; ACC_COLS],
         selector: [Selector; 2],
         instance: Column<Instance>,
-    ) -> OverflowCheckV2Config<MAX_BITS, ACC_COLS> {
+    ) -> SafeAccumulatorConfig<MAX_BITS, ACC_COLS> {
         let add_carry_selector = selector[0];
         let overflow_check_selector = selector[1];
 
@@ -98,7 +100,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
             .concat()
         });
 
-        OverflowCheckV2Config {
+        SafeAccumulatorConfig {
             update_value,
             left_most_inv,
             add_carries,
@@ -170,13 +172,11 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
                         offset + 1,
                         || Value::known(carry_flag.clone()),
                     );
-                    println!("carried >> idx: {:?}, value: {:?}", idx, carry_flag);
                 }
 
                 // decomposed result is little-endian, so the vector is opposite to the order of the columns
                 let decomposed_sum_big_uint = decompose_bigInt_to_ubits(&sum_big_uint, ACC_COLS, MAX_BITS as usize);
 
-                println!("decomposed_sum_big_uint: {:?}", decomposed_sum_big_uint);
                 let mut updated_accumulates: [Value<Fp>; ACC_COLS] = [Value::known(Fp::zero()); ACC_COLS];
                 let left_most_idx = ACC_COLS - 1;
                 for (i, v) in decomposed_sum_big_uint.iter().enumerate() {
@@ -184,7 +184,6 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
                     if i == left_most_idx {
                         let _is_overflow =
                             is_zero_chip.assign(&mut region, 1, Value::known(v.clone()));
-                        println!("v: {:?}, is_overflow: {:?}", v.clone(), _is_overflow.unwrap());
                     }
                     let _cell = region.assign_advice(
                         || format!("assign updated value to accumulated[{}]", i),
