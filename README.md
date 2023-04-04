@@ -269,7 +269,7 @@ The configure function takes as input the lhs and rhs virtual cells from a highe
 
 `lhs - rhs - diff + (lt * range) = 0`
 
-Note that the gate enforces inside this child chip, the constraint is dependent on the value of some cells passed from an higher level chip.
+Note that the gate enforces inside this child chip, the constraint is dependent on the value of some cells passed from an higher level chip. The parent chip and the child chip are sharing a region. That's why the `assign` function inside the `LTChip` takes as input the `region` rather than the `layouter` as usual.
 
 The assignment function takes as input the lhs and rhs values and assigns the values to the columns such that:
 
@@ -277,7 +277,7 @@ The assignment function takes as input the lhs and rhs values and assigns the va
 - if `lhs < rhs`, `lhs - rhs + range` is assigned to the `diff` advice columns
 - else `lhs - rhs` is assigned to the `diff` advice columns
 
-Again, note that the assignment function doesn't take assigned value of type `Value<F>` but simple values of type `F` where F is a generic Field Element.
+Again, note that the assignment function doesn't take assigned value of type `Value<F>` but simple values of type `F` where F is a generic Field Element. This example makes clear the difference between `assignment` and `setting constraints`. The assignment function is responsible for assigning values to the columns. You can perform the assignemnt starting from values that are not necessarily computed from the circuit itself. The constraint function is responsible for setting the constraints between the columns, this process is prior and independent to the assignment/witness generation.
 
 Now the custom gate should make more sense. Considering an example where `lhs = 5` and `rhs = 10` and N_BYTES is 1. Range would be 256 and diff would be a single advice column containing the value 251. The gate would be:
 
