@@ -1,16 +1,19 @@
 use super::super::chips::merkle_sum_tree::{MerkleSumTreeChip, MerkleSumTreeConfig};
-use halo2_proofs::{circuit::*, plonk::*, arithmetic::FieldExt};
+use halo2_proofs::{circuit::*, plonk::*};
+use std::marker::PhantomData;
+use eth_types::Field;
 
 #[derive(Default)]
-struct MerkleSumTreeCircuit <F: FieldExt> {
-    pub leaf_hash: Value<F>,
-    pub leaf_balance: Value<F>,
-    pub path_element_hashes: Vec<Value<F>>,
-    pub path_element_balances: Vec<Value<F>>,
-    pub path_indices: Vec<Value<F>>,
+struct MerkleSumTreeCircuit <F: Field> {
+    pub leaf_hash: F,
+    pub leaf_balance: F,
+    pub path_element_hashes: Vec<F>,
+    pub path_element_balances: Vec<F>,
+    pub path_indices: Vec<F>,
+    _marker: PhantomData<F>
 }
 
-impl <F:FieldExt> Circuit<F> for MerkleSumTreeCircuit<F> {
+impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
 
     type Config = MerkleSumTreeConfig<F>;
     type FloorPlanner = SimpleFloorPlanner;
@@ -44,17 +47,17 @@ impl <F:FieldExt> Circuit<F> for MerkleSumTreeCircuit<F> {
     ) -> Result<(), Error> {
 
         let chip = MerkleSumTreeChip::construct(config);
-        let (leaf_hash_cell, leaf_balance_cell) = chip.assing_leaf_hash_and_balance(layouter.namespace(|| "assign leaf"), self.leaf_hash, self.leaf_balance)?;
+        let (leaf_hash, leaf_balance) = chip.assing_leaf_hash_and_balance(layouter.namespace(|| "assign leaf"), F::from(self.leaf_hash), F::from(self.leaf_balance))?;
 
-        chip.expose_public(layouter.namespace(|| "public leaf hash"), &leaf_hash_cell, 0)?;
-        chip.expose_public(layouter.namespace(|| "public leaf balance"), &leaf_balance_cell, 1)?;
+        chip.expose_public(layouter.namespace(|| "public leaf hash"), &leaf_hash, 0)?;
+        chip.expose_public(layouter.namespace(|| "public leaf balance"), &leaf_balance, 1)?;
 
         // apply it for level 0 of the merkle tree
         // node cells passed as inputs are the leaf_hash cell and the leaf_balance cell
-        let (mut computed_hash_prev_level_cell, mut computed_balance_prev_level_cell) = chip.merkle_prove_layer(
+        let (mut next_hash, mut next_sum) = chip.merkle_prove_layer(
             layouter.namespace(|| format!("level {} merkle proof", 0)),
-            &leaf_hash_cell,
-            &leaf_balance_cell,
+            &leaf_hash,
+            &leaf_balance,
             self.path_element_hashes[0],
             self.path_element_balances[0],
             self.path_indices[0],
@@ -63,18 +66,18 @@ impl <F:FieldExt> Circuit<F> for MerkleSumTreeCircuit<F> {
         // apply it for the remaining levels of the merkle tree
         // node cells passed as inputs are the computed_hash_prev_level cell and the computed_balance_prev_level cell
         for i in 1..self.path_element_balances.len() {
-            (computed_hash_prev_level_cell, computed_balance_prev_level_cell) = chip.merkle_prove_layer(
+            (next_hash, next_sum) = chip.merkle_prove_layer(
                 layouter.namespace(|| format!("level {} merkle proof", i)),
-                &computed_hash_prev_level_cell,
-                &computed_balance_prev_level_cell,
+                &next_hash,
+                &next_sum,
                 self.path_element_hashes[i],
                 self.path_element_balances[i],
                 self.path_indices[i],
             )?;
         }
 
-        chip.expose_public(layouter.namespace(|| "public root"), &computed_hash_prev_level_cell, 2)?;
-        chip.expose_public(layouter.namespace(|| "public balance sum"), &computed_balance_prev_level_cell, 3)?;
+        chip.expose_public(layouter.namespace(|| "public root"), &next_hash, 2)?;
+        chip.expose_public(layouter.namespace(|| "public balance sum"), &next_sum, 3)?;
         Ok(())
     }
 }
@@ -84,7 +87,8 @@ mod tests {
     use super::MerkleSumTreeCircuit;
     use super::super::super::chips::poseidon::spec::MySpec;
     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength};
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_proofs::{dev::MockProver, halo2curves::bn256::Fr as Fp};
+    use std::marker::PhantomData;
 
     const WIDTH: usize = 5;
     const RATE: usize = 4;
@@ -96,54 +100,42 @@ mod tests {
         pub balance: Fp,
     }
 
-    fn compute_merkle_sum_root(node: &Node,  elements: &Vec<Node>, indices: &Vec<u64>) -> Node {
+    fn compute_merkle_sum_root(node: &Node,  elements: &Vec<Node>, indices: &Vec<Fp>) -> Node {
         let k = elements.len();
         let mut digest = node.clone();
         let mut message: [Fp; 4];
         for i in 0..k {
-            if indices[i] == 0 {
-                message = [digest.hash, digest.balance, elements[i].hash, elements[i].balance];
+            if indices[i] == 0.into() {
+                message = [Fp::from(digest.hash), Fp::from(digest.balance), Fp::from(elements[i].hash), Fp::from(elements[i].balance)];
             } else {
-                message = [elements[i].hash, elements[i].balance, digest.hash, digest.balance];
+                message = [Fp::from(elements[i].hash), Fp::from(elements[i].balance), Fp::from(digest.hash), Fp::from(digest.balance)];
             }
 
             digest.hash = poseidon::Hash::<_, MySpec<Fp, WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
                 .hash(message);
 
             digest.balance = digest.balance + elements[i].balance;
-
         }
         digest
     }
 
-    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<u64>) -> MerkleSumTreeCircuit<Fp>{
+    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<Fp>) -> MerkleSumTreeCircuit<Fp>{
 
-        let element_hashes: Vec<Value<Fp>> = elements
-        .iter()
-        .map(|x| Value::known(x.hash))
-        .collect();
-
-        let element_balances: Vec<Value<Fp>> = elements
-            .iter()
-            .map(|x| Value::known(x.balance))
-            .collect();
-
-        let indices_fp: Vec<Value<Fp>> = indices
-            .iter()
-            .map(|x| Value::known(Fp::from(x.to_owned())))
-            .collect();
+        let element_hashes: Vec<Fp> = elements.iter().map(|node| node.hash).collect();
+        let element_balances: Vec<Fp> = elements.iter().map(|node| node.balance).collect();
 
         MerkleSumTreeCircuit {
-            leaf_hash: Value::known(leaf.hash),
-            leaf_balance: Value::known(leaf.balance),
+            leaf_hash: leaf.hash,
+            leaf_balance: leaf.balance,
             path_element_hashes: element_hashes,
             path_element_balances: element_balances,
-            path_indices: indices_fp,
+            path_indices: indices,
+            _marker: PhantomData,
         }
 
     }
 
-    fn setup() -> (Node, Vec<Node>, Vec<u64>, Node) {
+    fn setup() -> (Node, Vec<Node>, Vec<Fp>, Node) {
 
         let leaf = Node {
             hash: Fp::from(10u64),
@@ -173,7 +165,7 @@ mod tests {
             },
         ];
 
-        let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
+        let indices = vec![Fp::from(0u64), Fp::from(0u64), Fp::from(0u64), Fp::from(0u64), Fp::from(0u64)];
 
         let root = compute_merkle_sum_root(&leaf, &elements, &indices);
 
@@ -266,7 +258,7 @@ mod tests {
 
         let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
 
-        indices[0] = 2;
+        indices[0] = Fp::from(2);
 
         let circuit = instantiate_circuit(leaf, elements, indices);
 
@@ -284,7 +276,7 @@ mod tests {
 
         let public_input = vec![leaf.hash, leaf.balance, root.hash, root.balance];
 
-        indices[0] = 1;
+        indices[0] = Fp::from(1);
 
         let circuit = instantiate_circuit(leaf, elements, indices);
 

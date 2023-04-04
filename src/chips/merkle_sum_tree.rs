@@ -114,20 +114,20 @@ impl <F: FieldExt> MerkleSumTreeChip<F> {
     pub fn assing_leaf_hash_and_balance(
         &self,
         mut layouter: impl Layouter<F>,
-        leaf_hash: Value<F>,
-        leaf_balance: Value<F>,
+        leaf_hash: F,
+        leaf_balance: F,
     ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> {
         let leaf_hash_cell = layouter.assign_region(
             || "assign leaf hash",
             |mut region| {
-                region.assign_advice(|| "leaf hash", self.config.advice[0], 0, || leaf_hash)
+                region.assign_advice(|| "leaf hash", self.config.advice[0], 0, || Value::known(leaf_hash))
             },
         )?;
 
         let leaf_balance_cell = layouter.assign_region(
             || "assign leaf balance",
             |mut region| {
-                region.assign_advice(|| "leaf balance", self.config.advice[1], 0, || leaf_balance)
+                region.assign_advice(|| "leaf balance", self.config.advice[1], 0, || Value::known(leaf_balance))
             },
         )?;
 
@@ -137,11 +137,11 @@ impl <F: FieldExt> MerkleSumTreeChip<F> {
     pub fn merkle_prove_layer(
         &self,
         mut layouter: impl Layouter<F>,
-        prev_hash_cell: &AssignedCell<F, F>,
-        prev_balance_cell: &AssignedCell<F, F>,
-        element_hash: Value<F>,
-        element_balance: Value<F>,
-        index: Value<F>,
+        prev_hash: &AssignedCell<F, F>,
+        prev_balance: &AssignedCell<F, F>,
+        element_hash: F,
+        element_balance: F,
+        index: F,
     ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> {
         let (left_hash, left_balance, right_hash, right_balance, computed_sum_cell) = layouter
             .assign_region(
@@ -150,91 +150,86 @@ impl <F: FieldExt> MerkleSumTreeChip<F> {
                     // Row 0 
                     self.config.bool_selector.enable(&mut region, 0)?;
                     self.config.swap_selector.enable(&mut region, 0)?;
-                    prev_hash_cell.copy_advice(
+                    let l1 = prev_hash.copy_advice(
                         || "copy hash cell from previous level",
                         &mut region,
                         self.config.advice[0],
                         0,
                     )?;
-                    prev_balance_cell.copy_advice(
+                    let l2 = prev_balance.copy_advice(
                         || "copy balance cell from previous level",
                         &mut region,
                         self.config.advice[1],
                         0,
                     )?;
-                    region.assign_advice(
+                    let r1 = region.assign_advice(
                         || "assign element_hash",
                         self.config.advice[2],
                         0,
-                        || element_hash,
+                        || Value::known(element_hash),
                     )?;
-                    region.assign_advice(
+                    let r2 = region.assign_advice(
                         || "assign balance",
                         self.config.advice[3],
                         0,
-                        || element_balance,
+                        || Value::known(element_balance),
                     )?;
-                    region.assign_advice(|| 
+                    let index = region.assign_advice(|| 
                         "assign index", 
                     self.config.advice[4], 
                     0, 
-                    || index
+                    || Value::known(index)
                     )?;
 
-                    // Row 1
+                    let mut l1_val = l1.value().map(|x| x.to_owned());
+                    let mut l2_val = l2.value().map(|x| x.to_owned());
+                    let mut r1_val = r1.value().map(|x| x.to_owned());
+                    let mut r2_val = r2.value().map(|x| x.to_owned());
+                
+
                     self.config.sum_selector.enable(&mut region, 1)?;
 
-                    let prev_hash_cell_value = prev_hash_cell.value().map(|x| x.to_owned());
-                    let prev_balance_cell_value = prev_balance_cell.value().map(|x| x.to_owned());
-
-                    // perform the swap according to the index
-                    let (mut l1, mut l2, mut r1, mut r2) = (
-                        prev_hash_cell_value,
-                        prev_balance_cell_value,
-                        element_hash,
-                        element_balance,
-                    );
-                    index.map(|x| {
-                        (l1, l2, r1, r2) = if x == F::zero() {
-                            (l1, l2, r1, r2)
+                    // if index is 0 return (l1, l2, r1, r2) else return (r1, r2, l1, l2)
+                    index.value().map(|x| x.to_owned()).map(|x| {
+                        (l1_val, l2_val, r1_val, r2_val) = if x == F::zero() {
+                            (l1_val, l2_val, r1_val, r2_val)
                         } else {
-                            (r1, r2, l1, l2)
+                            (r1_val, r2_val, l1_val, l2_val)
                         };
                     });
 
-                    // We need to perform the assignment of the row below
+                    // We need to perform the assignment of the row below according to the index
                     let left_hash = region.assign_advice(
                         || "assign left hash to be hashed",
                         self.config.advice[0],
                         1,
-                        || l1,
+                        || l1_val,
                     )?;
 
                     let left_balance = region.assign_advice(
                         || "assign left balance to be hashed",
                         self.config.advice[1],
                         1,
-                        || l2,
+                        || l2_val,
                     )?;
 
                     let right_hash = region.assign_advice(
                         || "assign right hash to be hashed",
                         self.config.advice[2],
                         1,
-                        || r1,
+                        || r1_val,
                     )?;
 
                     let right_balance = region.assign_advice(
                         || "assign right balance to be hashed",
                         self.config.advice[3],
                         1,
-                        || r2,
+                        || r2_val,
                     )?;
 
                     let computed_sum = left_balance.value().zip(right_balance.value()).map(|(a, b)| *a + b);
 
                     // Now we can assign the sum result to the computed_sum cell.
-                    // TO DO: is it constrained correctly?
                     let computed_sum_cell = region.assign_advice(
                         || "assign sum of left and right balance",
                         self.config.advice[4],
