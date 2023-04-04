@@ -90,12 +90,17 @@ impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
 
 #[cfg(test)]
 mod tests {
+    use crate::circuits::utils::full_prover;
+
     use super::MerkleSumTreeCircuit;
     use super::super::super::chips::poseidon::spec::MySpec;
     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength};
-    use halo2_proofs::{dev::MockProver, halo2curves::bn256::Fr as Fp};
+    use halo2_proofs::{
+        dev::MockProver, 
+        halo2curves::bn256::{Fr as Fp},
+    };
     use std::marker::PhantomData;
-
+    
     const WIDTH: usize = 5;
     const RATE: usize = 4;
     const L: usize = 4;
@@ -318,10 +323,39 @@ mod tests {
         assert!(invalid_prover.verify().is_err());
     }
 
+    #[test]
+    fn test_full_prover() {
+
+        let k = 8;
+
+        let (leaf, elements, indices, root) = build_merkle_tree();
+
+        let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, assets_sum];
+
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
+
+        full_prover(
+            circuit, 
+            k, 
+            &public_input
+        );
+
+    }
+
     #[cfg(feature = "dev-graph")]
     #[test]
     fn print_merkle_sum_tree() {
         use plotters::prelude::*;
+
+        let (leaf, elements, indices, root) = build_merkle_tree();
+
+        let assets_sum = Fp::from(200u64); // less than liabilities sum (400)
+
+        let public_input = vec![leaf.hash, leaf.balance, root.hash, assets_sum];
+
+        let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
         let root =
             BitMapBackend::new("prints/merkle-sum-tree-layout.png", (1024, 3096)).into_drawing_area();
@@ -329,10 +363,6 @@ mod tests {
         let root = root
             .titled("Merkle Sum Tree Layout", ("sans-serif", 60))
             .unwrap();
-
-        let (leaf, elements, indices, _) = build_merkle_tree();
-
-        let circuit = instantiate_circuit(leaf, elements, indices);
 
         halo2_proofs::dev::CircuitLayout::default()
             .render(8, &circuit, &root)

@@ -291,7 +291,7 @@ Furthermore, the chip contains four permutation check:
 
 TO DO: 
 - [x] Replace usage of constants in Inclusion Check.
-- [ ] Check that vectors passed as input to the Merkle Sum Tree are the same length
+- [ ] Fix printing functions
 - [ ] Check the security of the Poseidon Hash
 
 
