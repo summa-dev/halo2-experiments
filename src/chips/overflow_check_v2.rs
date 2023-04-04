@@ -51,7 +51,7 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
         }
         meta.enable_equality(instance);
 
-        meta.create_gate("accumulate constraint", |meta| {
+        meta.create_gate("accumulation constraint", |meta| {
             let s_add = meta.query_selector(add_carry_selector);
             let s_over = meta.query_selector(overflow_check_selector);
 
@@ -129,7 +129,7 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
 
         let is_zero_chip = IsZeroChip::construct(self.config.is_zero.clone());
         layouter.assign_region(
-            || "adivce row for accumulating",
+            || "accumulate",
             |mut region| {
                 // enable hash selector
                 self.config.selector[0].enable(&mut region, 1)?;
@@ -137,7 +137,7 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
 
                 // Assign new value to the cell inside the region
                 region.assign_advice(
-                    || "update_value",
+                    || "assign value for adding",
                     self.config.update_value,
                     1,
                     || update_value,
@@ -146,7 +146,7 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
                 // Assign previous accumulation
                 for (idx, val) in accumulated_values.iter().enumerate() {
                     region.assign_advice(
-                        || format!("{} col", idx),
+                        || format!("assign previous accumulate[{}] col", idx),
                         self.config.accumulate[idx],
                         offset,
                         || *val,
@@ -198,7 +198,7 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
                             is_zero_chip.assign(&mut region, 1, Value::known(v.clone()));
                     }
                     let _cell = region.assign_advice(
-                        || format!("assign accumulated[{}]", i),
+                        || format!("assign updated value to accumulated[{}]", i),
                         self.config.accumulate[i],
                         offset + 1,
                         || Value::known(v.clone()),
