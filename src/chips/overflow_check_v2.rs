@@ -1,3 +1,5 @@
+use crate::chips::is_zero;
+
 use super::is_zero::{IsZeroChip, IsZeroConfig};
 use halo2_proofs::{
     arithmetic::Field, circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation,
@@ -31,8 +33,6 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
         selector: [Selector; 2],
         instance: Column<Instance>,
     ) -> OverFlowCheckV2Config<ACC_COLS> {
-        println!("accumulation columns: {:?}", accumulate);
-
         let add_carry_selector = selector[0];
         let overflow_check_selector = selector[1];
 
@@ -40,7 +40,6 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
             meta,
             |meta| meta.query_selector(overflow_check_selector),
             |meta| meta.query_advice(accumulate[0], Rotation::cur()),
-            // |meta| meta.query_advice(col_b_inv, Rotation::cur())
             left_most_inv,
         );
 
@@ -61,7 +60,6 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
             meta.query_advice(accumulate[0], Rotation::cur());
 
             // TODO: refactoring
-            println!("ACC_COLS: {:?}", ACC_COLS);
             let accumulated_columns = (0..ACC_COLS)
                 .map(|i| {
                     let prev = meta.query_advice(accumulate[i], Rotation::prev());
@@ -69,7 +67,6 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
                     (prev, cur)
                 })
                 .collect::<Vec<(Expression<Fp>, Expression<Fp>)>>();
-            println!("accumulated_columns: {:?}", accumulated_columns);
             let previous_accumulates = accumulated_columns
                 .iter()
                 .enumerate()
@@ -87,9 +84,6 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
                 })
                 .collect::<Vec<Expression<Fp>>>();
 
-            println!("previous_accumulates:\n {:?}", previous_accumulates);
-            println!("current_accumulates:\n {:?}", current_accumulates);
-
             let sum_of_previous_acc = previous_accumulates
                 .iter()
                 .fold(Expression::Constant(Fp::zero()), |cur, next| {
@@ -100,11 +94,7 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
                 .fold(Expression::Constant(Fp::zero()), |cur, next| {
                     cur + next.clone()
                 });
-            println!("sum_of_previous_acc: {:?}", sum_of_previous_acc);
-            println!("sum_of_current_acc: {:?}", sum_of_current_acc);
 
-            // Previous accumulator amount + new value from a_cell
-            // using binary expression (x_n-4 * 2^16) + (x_n-3 * 2^8) + ... + (x_n * 2)
             vec![
                 s_add * (value + sum_of_previous_acc - sum_of_current_acc),
                 // check 'b' is zero
@@ -122,111 +112,21 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
         }
     }
 
-    // Initial accumulator values from instance for expreiment
-    pub fn assign_first_row(
+    pub fn assign(
         &self,
         mut layouter: impl Layouter<Fp>,
-        accumulated_values: Vec<Value<Fp>>,
-    ) -> Result<
-        (
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
-        ),
-        Error,
-    > {
-        layouter.assign_region(
-            || "first row",
-            |mut region| {
-                let b_cell = region.assign_advice(
-                    || "first acc[1]",
-                    self.config.accumulate[0],
-                    0,
-                    || accumulated_values[0],
-                )?;
-
-                let c_cell = region.assign_advice(
-                    || "first acc[2]",
-                    self.config.accumulate[1],
-                    0,
-                    || accumulated_values[1],
-                )?;
-
-                let d_cell = region.assign_advice(
-                    || "first acc[3]",
-                    self.config.accumulate[2],
-                    0,
-                    || accumulated_values[2],
-                )?;
-                // let b_cell = region.assign_advice_from_instance(
-                //     || "first acc[2]",
-                //     self.config.instance,
-                //     0,
-                //     self.config.advice[2],
-                //     0,
-                // )?;
-
-                // let c_cell = region.assign_advice_from_instance(
-                //     || "first acc[4]",
-                //     self.config.instance,
-                //     0,
-                //     self.config.advice[3],
-                //     0,
-                // )?;
-
-                // let d_cell = region.assign_advice_from_instance(
-                //     || "first acc[4]",
-                //     self.config.instance,
-                //     1,
-                //     self.config.advice[4],
-                //     0,
-                // )?;
-
-                Ok((b_cell, c_cell, d_cell))
-            },
-        )
-    }
-
-    fn add_carry<const MAX_BITS: u8>(
-        &self,
-        hi: AssignedCell<Fp, Fp>,
-        lo: AssignedCell<Fp, Fp>,
-        value: Value<Fp>,
-    ) -> (Fp, Fp) {
-        let max_bits = Fp::from(1 << MAX_BITS);
+        offset: usize,
+        update_value: Value<Fp>,
+        accumulated_values: [Value<Fp>; ACC_COLS], // ) -> Result<[AssignedCell<Fp, Fp>; ACC_COLS], Error> {
+    ) -> Result<Vec<AssignedCell<Fp, Fp>>, Error> {
+        // TODO: handling more than 16bits value
         let mut sum = Fp::zero();
+        update_value.as_ref().map(|f| sum = sum.add(f));
+        assert!(
+            sum <= Fp::from(1 << 16),
+            "update value less than or equal 2^16"
+        );
 
-        // sum of all values
-        value.as_ref().map(|f| sum = sum.add(f));
-        hi.value().map(|f| sum = sum.add(&f.mul(&max_bits)));
-        lo.value().map(|f| sum = sum.add(f));
-
-        // Iterate sum of all
-        let mut remains = sum;
-        let mut carry_count = Fp::zero();
-        while remains >= max_bits {
-            remains = remains.sub(&max_bits);
-            carry_count = carry_count.add(&Fp::one());
-        }
-
-        (carry_count, remains)
-    }
-
-    pub fn assign_advice_row(
-        &self,
-        mut layouter: impl Layouter<Fp>,
-        a: Value<Fp>,
-        prev_b: AssignedCell<Fp, Fp>,
-        prev_c: AssignedCell<Fp, Fp>,
-        prev_d: AssignedCell<Fp, Fp>,
-    ) -> Result<
-        (
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
-        ),
-        Error,
-    > {
         let is_zero_chip = IsZeroChip::construct(self.config.is_zero.clone());
         layouter.assign_region(
             || "adivce row for accumulating",
@@ -235,55 +135,78 @@ impl<const ACC_COLS: usize> OverFlowChipV2<ACC_COLS> {
                 self.config.selector[0].enable(&mut region, 1)?;
                 self.config.selector[1].enable(&mut region, 1)?;
 
-                let _ = prev_b.copy_advice(|| "prev_b", &mut region, self.config.accumulate[0], 0);
-                let _ = prev_c.copy_advice(|| "prev_c", &mut region, self.config.accumulate[1], 0);
-                let _ = prev_d.copy_advice(|| "prev_d", &mut region, self.config.accumulate[2], 0); 
                 // Assign new value to the cell inside the region
-                region.assign_advice(|| "update_value", self.config.update_value, 1, || a)?;
-
-                let (hi, lo) = self.add_carry::<16>(prev_c.clone(), prev_d.clone(), a);
-
-                // assigning two columns of accumulating value
-                let mut c_cell = region.assign_advice(
-                    || "sum_hi",
-                    self.config.accumulate[1],
+                region.assign_advice(
+                    || "update_value",
+                    self.config.update_value,
                     1,
-                    || Value::known(hi),
-                )?;
-                let d_cell = region.assign_advice(
-                    || "sum_lo",
-                    self.config.accumulate[2],
-                    1,
-                    || Value::known(lo),
+                    || update_value,
                 )?;
 
-                let mut sum_overflow = Fp::zero();
-                if hi >= Fp::from(1 << 16) {
-                    let (ov, hi) = self.add_carry::<16>(
-                        prev_b.clone(),
-                        c_cell.clone(),
-                        Value::known(Fp::zero()),
-                    );
-                    sum_overflow = ov;
-                    c_cell = region.assign_advice(
-                        || "sum_hi",
-                        self.config.accumulate[1],
-                        1,
-                        || Value::known(hi),
+                // Assign previous accumulation
+                for (idx, val) in accumulated_values.iter().enumerate() {
+                    region.assign_advice(
+                        || format!("{} col", idx),
+                        self.config.accumulate[idx],
+                        offset,
+                        || *val,
                     )?;
                 }
 
-                let b_cell = region.assign_advice(
-                    || "sum_overflow",
-                    self.config.accumulate[0],
-                    1,
-                    || Value::known(sum_overflow),
-                )?;
+                // TODO: refactoring calculation with closure pattern
+                let mut updated_accumulated_value = [Fp::zero(); ACC_COLS];
+                let mut carry_value = Fp::zero();
 
-                // apply is_zero chip in here
-                let _is_overflow = is_zero_chip.assign(&mut region, 1, Value::known(hi));
+                let _ = (1..ACC_COLS)
+                    .map(|idx| {
+                        let lhs_idx = ACC_COLS - (idx + 1);
+                        let rhs_idx = ACC_COLS - idx;
+                        let shift_bits = Fp::from(1 << 16);
+                        let mut sum = Fp::zero();
 
-                Ok((b_cell, c_cell, d_cell))
+                        // a sum of value in two columns on right side
+                        if idx == 1 {
+                            accumulated_values[rhs_idx].map(|f| sum = sum.add(&f));
+                            update_value.as_ref().map(|f| sum = sum.add(&f));
+                        } else {
+                            sum = sum.add(&carry_value);
+                        }
+                        accumulated_values[lhs_idx].map(|f| sum = sum.add(&f.mul(&shift_bits)));
+
+                        // calculate a number for carry to next column
+                        carry_value = Fp::zero();
+                        let mut remains = sum;
+                        while remains >= shift_bits {
+                            remains = remains.sub(&shift_bits);
+                            carry_value = carry_value.add(&Fp::one());
+                        }
+
+                        updated_accumulated_value[rhs_idx] = remains;
+
+                        // Assign left most column for overflow number
+                        if lhs_idx == 0 {
+                            updated_accumulated_value[0] = carry_value.clone();
+                        }
+                    })
+                    .collect::<Vec<()>>();
+
+                let mut assigend_cells: Vec<AssignedCell<Fp, Fp>> = vec![];
+                for (i, v) in updated_accumulated_value.iter().enumerate() {
+                    // a value in left most columns is overflow
+                    if i == 0 {
+                        let _is_overflow =
+                            is_zero_chip.assign(&mut region, 1, Value::known(v.clone()));
+                    }
+                    let _cell = region.assign_advice(
+                        || format!("assign accumulated[{}]", i),
+                        self.config.accumulate[i],
+                        offset + 1,
+                        || Value::known(v.clone()),
+                    );
+                    assigend_cells.push(_cell.unwrap());
+                }
+
+                Ok(assigend_cells)
             },
         )
     }
