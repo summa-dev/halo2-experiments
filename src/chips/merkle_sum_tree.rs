@@ -263,7 +263,7 @@ impl <F: FieldExt> MerkleSumTreeChip<F> {
         // 3. Constrain the digest to be equal to the hash of the left and right values
         let computed_hash = poseidon_chip.hash(
             layouter.namespace(|| "hash four child nodes"),
-            &[left_hash, left_balance, right_hash, right_balance],
+            [left_hash, left_balance, right_hash, right_balance],
         )?;
 
         Ok((computed_hash, computed_sum_cell))

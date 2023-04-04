@@ -157,7 +157,7 @@ impl <F: FieldExt> MerkleTreeV3Chip<F> {
         // 2. Perform the hash function and assign the digest to the current row
         // 3. Constrain the digest to be equal to the hash of the left and right values
         let digest =
-            poseidon_chip.hash(layouter.namespace(|| "hash row constaint"), &[left, right])?;
+            poseidon_chip.hash(layouter.namespace(|| "hash row constaint"), [left, right])?;
         Ok(digest)
     }
 
