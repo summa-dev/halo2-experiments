@@ -14,6 +14,11 @@ List of available experiments:
 - [Experiment 6 - Merkle Tree V2](#experiment-6---merkle-tree-v2)
 - [Experiment 7 - Poseidon Hash](#experiment-7---poseidon-hash)
 - [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
+- [Experiment 9 - Add Carry v1](#experiment-9---add-carry-v1
+)
+- [Experiment 10 - Add Carry v2](#experiment-10---add-carry-v2
+)
+- [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
 
 # Experiment 1 - Inclusion Check
 
@@ -335,14 +340,23 @@ In this case, addition value is more than 2^32. so, the circuit got panic with t
 
 # Experiment 12 - Overflow Check V2
 
-This chip supports a vector of values for adding values to accumulation columns. The size of the accumulation columns can be configured with a generic constant in the chip configuration. Each column can have double bytes(i.e 16bits) as maximum. The actual value of the column is shifted values by the position of accumulation columns. For example, let's assume six accumulation columns in a circuit. if there is 7 in right most column, means that `0x7` value has. but if there is 3 in left most columns, means that `0x3 << (16 * 5)` value has.
+This chip checks the equality between the value and its decomposed form. We can adjust the number of columns and set the maximum number that each column can have for the decomposed value with circuit configuration.
 
-Note that, the left most accumulation columns be used for checking overflow in this chip. It means that have to configure extra one more columns than maximum accumulation value. so if you trying to check over 128bits(8bytes), have to configure 9 columns in circuit.
+Let's use a prime number, 2^254, for the field. We should set 63 for the number of columns and 4 bits for the maximum number in each column. 
+
+In the `OverflowCheckCircuitV2`, have reduced the example to only 4 columns and 4 bits.
+
+# Experiment 13 - Safe Accumulator
+
+This chip supports a vector of values for adding values to accumulation columns. The size of the accumulation columns can be configured with a generic constant in the chip configuration. Each column can have double bytes(i.e 4bits) as maximum. The actual value of the column is shifted values by the position of accumulation columns. For example, let's assume six accumulation columns in a circuit. if there is 7 in right most column, means that `0x7` value has. but if there is 3 in left most columns, means that `0x3 << (4 * 5)` value has.
+
+Note that, the left most accumulation columns be used for checking overflow in this chip. It means that have to configure extra one more columns than maximum accumulation value. so if you trying to check over 64bits(8bytes), have to configure 9 columns in circuit.
 
 ```Rust
-pub struct OverFlowCheckV2Config<const ACC_COLS: usize> {
+pub struct SafeAccumulatorConfig<const MAX_BITS: u8, const ACC_COLS: usize> {
     pub update_value: Column<Advice>,
     pub left_most_inv: Column<Advice>,
+    pub add_carries: [Column<Advice>; ACC_COLS],
     pub accumulate: [Column<Advice>; ACC_COLS],
     pub instance: Column<Instance>,
     pub is_zero: IsZeroConfig,
@@ -353,7 +367,15 @@ pub struct OverFlowCheckV2Config<const ACC_COLS: usize> {
 In the test case, first accumulation value initialized with the array of `accumulate`. and add `value` with the accumulation columns at row 0 then assign values to the accumultion columns at row 0 in properly.
 
 - None overflow case
-    | - | value | left_most_inv | accumulte[0](x * 2^32) | accumulte[1](x * 2^16)  | accumulte[2](x * 2^0) | instance  |
-    | - | - | - | - | - | - | - |
-    | 0 | - | - | - |  0xfffe |  0xfffd | 0 |
-    | 1 | 0x4 | * | 0 |  0xffff | 0x1 | 0|
+
+| - | new_value | Overflow_inv | add_carried_2 | add_carried_1 | add_carried_0 | accumulates_3 | accumulates_2 | accumulates_1 | accumulates_0 | 
+| -- | -- | -- | -- | -- | -- | -- | -- | -- | - |
+| previous_acc |   |   |   |   |   | 0 | 0 | 0xe | 0xd | 
+| updated_acc | 0x4 | 0 | 0 | 0 | 1 | 0 | 0 | 0xf | 1 |
+
+- Overflow case
+
+| - | new_value | Overflow_inv | add_carried_2 | add_carried_1 | add_carried_0 | accumulates_3 | accumulates_2 | accumulates_1 | accumulates_0 | 
+| -- | -- | -- | -- | -- | -- | -- | -- | -- | - |
+| previous_acc |   |   |   |   |   | 0 | 0xf | 0xf | 0xd | 
+| updated_acc | 0x4 | 0 | 0 | 1 | 1 | 1 | 0 | 0 | 1 |
