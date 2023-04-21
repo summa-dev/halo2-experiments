@@ -6,3 +6,5 @@ pub mod merkle_v1;
 pub mod merkle_v2;
 pub mod poseidon;
 pub mod merkle_v3;
+pub mod less_than;
+pub mod util;
