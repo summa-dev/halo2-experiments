@@ -10,6 +10,6 @@ pub mod add_carry_v1;
 pub mod add_carry_v2;
 pub mod is_zero;
 pub mod overflow_check;
+pub mod overflow_check_v2;
 pub mod safe_accumulator;
 pub mod utils;
-// pub mod lookup; 
