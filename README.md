@@ -14,7 +14,10 @@ List of available experiments:
 - [Experiment 6 - Merkle Tree V2](#experiment-6---merkle-tree-v2)
 - [Experiment 7 - Poseidon Hash](#experiment-7---poseidon-hash)
 - [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
-- [Experiment 9 - Merkle Sum Tree](#experiment-9---merkle-sum-tree)
+- [Experiment 9 - LessThan Chip with Dynamic Lookup Table V1](#experiment-9---lessthan-chip-with-dynamic-lookup-table-v1)
+- [Experiment 10 - LessThan Chip V2](#experiment-10---lessthan-chip-v2)
+- [Experiment 11 - LessThan Chip V3](#experiment-11---lessthan-chip-v3)
+- [Experiment 12 - Merkle Sum Tree](#experiment-12---merkle-sum-tree)
 
 # Run
 
@@ -244,7 +247,74 @@ At proving time:
     - call the `merkle_prover_layer` function on the chip for each level of the merkle tree. 
     - call the `expose_public` function by passing in the last output of the `merkle_prove_layer` function. This function will constrain it to be equal to the expected root passed into the public instance column.
 
-# Experiment 9 - Merkle Sum Tree
+# Experiment 9 - LessThan Chip with Dynamic Lookup Table V1
+
+This Chip takes an input inside the input column advice. Say that we want to check if the input is less than 5. The instance column will be loaded with the values 0, 1, 2, 3, 4. The chip will then copy each value contained in the instance column to an `advice_table` advice column. The chip set a constraint on input to be less than 5 by creating a dynamic lookup check between the input and the `advice_table` column. If the input is less than 5, then the lookup will be successful and the constraint will be satisfied.
+
+The dynamic constraint is set using the `lookup_any` API. The dynamic caracteristic is needed to let the prover add the value to compare `input` with at witness generation time.
+
+TO DO:
+- [x] Make it generic for Field F
+- [x] Describe it
+
+# Experiment 10 - LessThan Chip V2
+
+This LessThan Chip is imported from the [ZK-evm circuits gadgets](https://github.com/privacy-scaling-explorations/zkevm-circuits/blob/main/gadgets/src/less_than.rs). The LessThan Chip takes two values that are part of the witness (`lhs` and `rhs`) and returns 1 if `lhs < rhs` and 0 otherwise.
+
+### Configuration
+
+The LessThan Chip Configuration contains: 
+
+- 1 advice column `lt` that denotes the result of the comparison: 1 if `lhs < rhs` and 0 otherwise
+- An array of `diff` advice columns of length N_BYTES. It is basically the difference between `lhs` and `rhs` expressed in 8-bit chunks.
+- An field element `range` that denotes the range in which both `lhs` and `rhs` are expected to be. This is calculated as `2^N_BYTES * 8` where `N_BYTES` is the number of bytes that we want to use to represent the values `lhs` and `rhs`.
+
+The configure function takes as input the lhs and rhs virtual cells from a higher level chip and enforces the following gate:
+
+`lhs - rhs - diff + (lt * range) = 0`
+
+Note that the gate enforces inside this child chip, the constraint is dependent on the value of some cells passed from an higher level chip. The parent chip and the child chip are sharing a region. That's why the `assign` function inside the `LTChip` takes as input the `region` rather than the `layouter` as usual.
+
+The assignment function takes as input the lhs and rhs values and assigns the values to the columns such that:
+
+- `lhs < rhs` bool is assigned to the `lt` advice column
+- if `lhs < rhs`, `lhs - rhs + range` is assigned to the `diff` advice columns
+- else `lhs - rhs` is assigned to the `diff` advice columns
+
+Again, note that the assignment function doesn't take assigned value of type `Value<F>` but simple values of type `F` where F is a generic Field Element. This example makes clear the difference between `assignment` and `setting constraints`. The assignment function is responsible for assigning values to the columns. You can perform the assignemnt starting from values that are not necessarily computed from the circuit itself. The constraint function is responsible for setting the constraints between the columns, this process is prior and independent to the assignment/witness generation.
+
+Now the custom gate should make more sense. Considering an example where `lhs = 5` and `rhs = 10` and N_BYTES is 1. Range would be 256 and diff would be a single advice column containing the value 251. The gate would be:
+
+    `5 - 10 - 251 + (1 * 256) = 0`
+
+Considering an example where `lhs = 10` and `rhs = 5` and N_BYTES is 1. Range would be 256 and diff would be a single advice column containing the value 5. The gate would be:
+
+    `10 - 5 - 5 + (0 * 256) = 0`
+
+The [`less_than_v2` circuit](./src/circuits/less_than_v2.rs) contains the instruction on how to use the LessThan Chip in a higher level circuit. The only added gate is that the `check` value in the advice column of the higher level circuit (which is the expected result of the comparison) should be equal to the `lt` value in the advice column of the LessThan Chip.
+
+Lastly, let's consider a case where lhs lies outside the range. For example `lhs = 1` and `rhs = 257` and N_BYTES is 1. Diff is a single advice column but it can't represent the value 256 in 8 bits!
+
+TO DO: 
+- [x] Understand the whole functioning 
+- [x] Check whether it is possible to import it from the zkevm circuits lib.
+- [x] Need to enforce the LT expression to be equal to 1 on a higher-level circuit!
+
+# Experiment 11 - LessThan Chip V3
+
+This experiment makes use of the same chip as in V2. The only difference here is that on the higher level circuit level we impose the LessThan value to be constrained to 1.
+
+~~The only difference here is the additional constraint added at line 61~~
+
+~~`vec![..., q_enable * (Expression::Constant(F::from(1)) - check)]`~~
+
+This property is constrained by assigning 1 to the check in the synthesize function. The constraint set inside the top level circuit checks that check is equal to lt in the child chip. 
+
+The Circuit built on top of that chip (`circuits/less_than_v3.rs`) also makes use of the `hash_v1` chip. This is just an experiment to remark that you can reuse the generic Field trait from `eth_types::{Field}` to instantiate a chip that is generic on a Field of trait F from halo2_proofs::arithmetic::FieldExt. That's because the Field trait is a wrapper around the FieldExt type (and other 2 types) => https://github.com/privacy-scaling-explorations/zkevm-circuits/blob/4cfccfa6c3b251284ff61eeb907d548d59206753/eth-types/src/lib.rs#LL51C72-L51C72. 
+
+It means that you can use the eth_field::Field type to instantiate a chip that is generic on a F that implements the FieldExt trait.
+
+# Experiment 12 - Merkle Sum Tree
 
 This chip implements the logic of a [Merkle Sum Tree](https://github.com/summa-dev/pyt-merkle-sum-tree). The peculiarity of a Merkle Sum Tree are that:
 
@@ -293,6 +363,7 @@ TO DO:
 - [x] Replace usage of constants in Inclusion Check.
 - [ ] Fix printing functions
 - [ ] Check the security of the Poseidon Hash
+
 
 
 

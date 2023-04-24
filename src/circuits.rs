@@ -8,3 +8,6 @@ pub mod merkle_v3;
 pub mod poseidon;
 pub mod merkle_sum_tree;
 pub mod utils;
+pub mod less_than;
+pub mod less_than_v2;
+pub mod less_than_v3;
