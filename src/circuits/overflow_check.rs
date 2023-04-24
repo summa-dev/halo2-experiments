@@ -59,6 +59,7 @@ impl Circuit<Fp> for OverflowCheckCircuit {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use std::panic;
     use super::OverflowCheckCircuit;

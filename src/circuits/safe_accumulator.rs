@@ -68,6 +68,7 @@ impl Circuit<Fp> for SafeAccumulatorCircuit {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::SafeAccumulatorCircuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::{pasta::Fp, FieldExt}};

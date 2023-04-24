@@ -44,6 +44,7 @@ impl Circuit<Fp> for AddCarryCircuit {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::AddCarryCircuit;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
