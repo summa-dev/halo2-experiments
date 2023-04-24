@@ -21,11 +21,7 @@ impl<F: FieldExt> Circuit<F> for MerkleTreeV2Circuit<F> {
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
         let instance = meta.instance_column();
-        MerkleTreeV2Chip::configure(
-            meta,
-            [col_a, col_b, col_c],
-            instance,
-        )
+        MerkleTreeV2Chip::configure(meta, [col_a, col_b, col_c], instance)
     }
 
     fn synthesize(

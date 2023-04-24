@@ -16,6 +16,14 @@ List of available experiments:
 - [Experiment 8 - Merkle Tree v3](#experiment-8---merkle-tree-v3)
 - [Experiment 9 - LessThan Chip with Dynamic Lookup Table V1](#experiment-9---lessthan-chip-with-dynamic-lookup-table-v1)
 - [Experiment 10 - LessThan Chip V2](#experiment-10---lessthan-chip-v2)
+- [Experiment 11 - LessThan Chip V3](#experiment-11---lessthan-chip-v3)
+- [Experiment 12 - Merkle Sum Tree](#experiment-12---merkle-sum-tree)
+
+# Run
+
+`cargo test --all-features -- --nocapture`
+
+This command will test all the circuits and print the representation of the circuits inside the `prints` folder.
 
 # Experiment 1 - Inclusion Check
 
@@ -30,9 +38,6 @@ The inclusion check Chip is a Chip built using 2 advice columns, 1 selector colu
 The constraint is enforced as a permutation check between the cell of the advice column and the cell of the instance column.
 
 In this example, we don't really need a selector as we are not enforcing any custom gate.
-
-`cargo test -- --nocapture test_inclusion_check_1`
-`cargo test --all-features -- --nocapture print_inclusion_check`
 
 ### Configuration
 
@@ -64,7 +69,6 @@ The constraint is enforced as a permutation check between the cell of the advise
 
 The 4 advice columns and the 1 instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The selector is instantiated inside the `configure` function of the chip. That's because this selector is specific for the InclusionCheck chip and doesn't need to be shared across other chips.
 
-`cargo test -- --nocapture test_inclusion_check_2`
 
 # Experiment 3 - Dummy Hash V1
 
@@ -82,8 +86,6 @@ The zk snark verifies that the prover knows `a` such that the output of the hash
 `a` and `b` here are the advice column, namely the private inputs of circuit.
 
 The instance column contains the public input of the circuit namely the result of the hash function that the zk snark should verify.
-
-`cargo test -- --nocapture test_hash_1`
 
 ### Configuration
 
@@ -109,8 +111,6 @@ The instance column contains the public input of the circuit namely the result o
 ### Configuration
 
 Same as dummy hash V2.
-
-`cargo test -- --nocapture test_hash_2`
 
 # Experiment 5 - Merkle Tree V1
 
@@ -139,15 +139,14 @@ The chip contains 3 custom gates:
 - If the `swap_selector` is on, checks that the swap on the next row is performed correctly according to the `bit`
 - If the `hash_selector` is on, checks that the digest is equal to the (dummy) hash between input left and input right
 
-Furthermore, the chip contains 2 permutation check:
+Furthermore, the chip contains a permutation check:
 
+- Verfies that the `leaf` is equal to the `leaf` passed as (public) value to the instance column
 - Verifies that the last `digest` is equal to the `root` of the tree which is passed as (public) value to the instance column
 
 ### Configuration
 
 The MerkleTreeV1Config contains 3 advice column, 1 bool_selector, 1 swap_selector, 1 hash_selector, and 1 instance column. The advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The selectors are instantiated inside the `configure` function of the chip. That's because these selectors are specific for the MerkleTreeV1 chip and don't need to be shared across other chips.
-
-`cargo test -- --nocapture test_merkle_tree_1`
 
 # Experiment 6 - Merkle Tree V2
 
@@ -164,17 +163,14 @@ The MerkleTreeV2Config contains 3 advice column, 1 bool_selector, 1 swap_selecto
 
 The advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the MerkleTreeV2Chip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because these selectors are specific for the MerkleTreeV2Chip and don't need to be shared across other chips. The child chip Hash2Chip is instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because the Hash2Chip is specific for the MerkleTreeV2Chip by passing in the advice columns and the instance column that are shared between the two chips. In this way we can leverage `Hash2Chip` with its gates and its assignment function inside our MerkleTreeV2Chip. 
 
-`cargo test -- --nocapture test_merkle_tree_1`
-
-
 # Experiment 7 - Poseidon Hash
 
 Create a chip that performs a Poseidon hash leveraging the gadget provided by the Halo2 Library.
 Based on this implementation => https://github.com/jtguibas/halo2-merkle-tree/blob/main/src/circuits/poseidon.rs
 
-The PoseidonChip, compared to the Pow5Chip gadget provided by the Halo2Library, adds one advice column that takes the input of the hash function and one instance column that takes the expected output of the hash function.
+The PoseidonChip, compared to the Pow5Chip gadget provided by the Halo2Library, adds a vector of advice columns that takes the input of the hash function and one instance column that takes the expected output of the hash function.
 
-### Configuration
+Similarly to the previous experiment, the PoseidonChip is a the top-level chip of the circuit while the Pow5Chip can be seen as a child chip as you can see from the configuration of the PoseidonChip
 
 The configuration tree looks like this:
 
@@ -183,9 +179,11 @@ The configuration tree looks like this:
 
 The PoseidonConfig contains a vector of advice columns, 1 instance column and the Pow5Config.
 
-The vector of advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the PoseidonChip. That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). Further columns part of the configuration of the `Pow5Chip` are created inside the `configure` function of the PoseidonChip and passed to the configure function of the `Pow5Chip`
+The vector of advice columns and the instance column are instantiated inside the `configure` function of the circuit and passed to the `configure` function of the PoseidonChip. In particular the vector of advice columns contains as many columns as the WIDTH of the Poseidon hash function (more details later).
 
-The bool_selector and swap_seletor are instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because these selectors are specific for the MerkleTreeV2Chip and don't need to be shared across other chips. The child chip Hash2Chip is instantiated inside the `configure` function of the MerkleTreeV2Chip. That's because the Hash2Chip is specific for the MerkleTreeV2Chip by passing in the advice columns and the instance column that are shared between the two chips. In this way we can leverage `Hash2Chip` with its gates and its assignment function inside our MerkleTreeV2Chip. 
+That's because in this way these columns can be shared across different chips inside the same circuit (although this is not the case). Further columns part of the configuration of the `Pow5Chip` are created inside the `configure` function of the PoseidonChip and passed to the configure function of the `Pow5Chip`.
+
+## Functioning Logic
 
 At proving time:
 
@@ -210,12 +208,11 @@ In particular we can see that the poseidon hash is instantiated using different 
 
 - The columns (`hash_inputs`, `instance`) are created in the [`configure` function of the PoseidonCircuit](https://github.com/summa-dev/halo2-experiments/blob/poseidon-hash/src/circuits/poseidon.rs#L41). All the other columns (the columns to be passed to the `pow5_config`) are created in the `configure` function of the Poseidon Chip. This function returns the PoseidonConfig instantiation. 
 
-- The instantiation of the PoseidonConfig is passed to the `syntesize` function of the PoseidonCircuit. This function will pass the input values for the witness generation to the chip that will take care of assigning the values to the columns and verifying the constraints.
+- The instantiation of the PoseidonConfig is passed to the `syntesize` function of the PoseidonCircuit. This function will pass the input values for the witness generation to the chip that will take care of assigning the values to the columns and verifying the constraints. In particular, it will:
 
-Test:
-
-`cargo test -- --nocapture test_poseidon`
-`cargo test --all-features -- --nocapture print_poseidon`
+    - call `load_private_inputs` on the poseidon chip to assign the hash input values to the advice columns `hash_inputs`. This function will return the assigned cells inside the advice columns `hash_inputs`
+    - call `hash` on the poseidon chip passing the hash input values to the advice columns `hash_inputs`. This function will return the assigned cells inside the advice columns `hash_inputs`. Later it will initialize the `pow5_chip` and call the `hash` function on the `pow5_chip` passing the `hash_input` column. This function will return an assigned cell that represents the constrained output of the hash function.
+    - call the `expose_public` function on the poseidon chip by passing in the assigned cell output of the `hash` function. This function will constrain it to be equal to the expected hash output passed into the public instance column.
 
 # Experiment 8 - Merkle Tree V3
 
@@ -235,13 +232,20 @@ The 3 advice columns and the instance column are instantiated inside the `config
 
 The child chip PoseidonChip is instantiated inside the `configure` function of the MerkleTreeV2Chip. In this way we can leverage `PoseidonChip` with its gates and its assignment function inside our MerkleTreeV2Chip.
 
-`cargo test -- --nocapture test_merkle_tree_3`
-`cargo test --all-features -- --nocapture print_merkle_tree_3`
+## Functioning Logic
 
-TO DO: 
-- [x] Replace usage of constants in Inclusion Check.
-- [x] Verifies that the leaf used inside the circuit is equal to the `leaf` passed as (public) value to the instance column
-- [x] Add 2 public inputs to merkle_v1
+At proving time:
+
+- We instatiate the MerkleTreeV3 Circuit with the leaf, the path_elements and the path_indices
+
+- The 3 advice columns and the instance column are created in the `configure` function of the MerkleTreeV3 Circuit. All the other columns (`hash_inputs`, namely the columns to be passed to the `poseidon config`) are created in the `configure` function of the MerkleTreeV3 Chip. This function returns a MerkleTreeV3Config instance. 
+
+- The instantiation of the PoseidonConfig is passed to the `syntesize` function of the PoseidonCircuit. This function will pass the input values for the witness generation to the chip that will take care of assigning the values to the columns and verifying the constraints. In particular, it will:
+
+    - call `assign leaf` on the merkle tree chip to leaf value inside a cell in the advice column `a`. This function will return the assigned cells.
+    - call the `expose_public` function on the merkle tree chip by passing in the assigned cell output of the `assign leaf` function. This function will constrain it to be equal to the expected leaf hash passed into the public instance column.
+    - call the `merkle_prover_layer` function on the chip for each level of the merkle tree. 
+    - call the `expose_public` function by passing in the last output of the `merkle_prove_layer` function. This function will constrain it to be equal to the expected root passed into the public instance column.
 
 # Experiment 9 - LessThan Chip with Dynamic Lookup Table V1
 
@@ -310,8 +314,55 @@ The Circuit built on top of that chip (`circuits/less_than_v3.rs`) also makes us
 
 It means that you can use the eth_field::Field type to instantiate a chip that is generic on a F that implements the FieldExt trait.
 
+# Experiment 12 - Merkle Sum Tree
 
+This chip implements the logic of a [Merkle Sum Tree](https://github.com/summa-dev/pyt-merkle-sum-tree). The peculiarity of a Merkle Sum Tree are that:
 
+- Each node inside the tree (both Leaf Nodes and Middle Nodes) contains an hash and a value.
+- Each Leaf Node contains a hash and a value.
+- Each Middle Node contains a hash and a value where hash is equal to `Hash(left_child_hash, left_child_sum, right_child_hash, right_child_sum)` and value is equal to `left_child_sum + right_child_sum`.
+
+A level inside the tree consists of the following region inside the chip:
+
+For the level 0 of the tree:
+
+| a                | b                     | c               |    d              |   e        |  bool_selector | swap_selector |  sum_selector
+| --               | -                     | --              |   ---             |  ---       |    --          | ---           |  ---
+| leaf_hash        | leaf_balance          | element_hash    |element_balance    | index      |        1       | 1             |  0
+| input_left_hash  | input_left_balance    | input_right_hash|input_right_balance|computed_sum|     0          | 0             |  1
+
+At row 0, we assign the leaf_hash, the leaf_balance, the element_hash (from `path_element_hashes`), the element_balance (from `path_element_balances`) and the bit (from `path_indices`). At this row we turn on `bool_selector` and `swap_selector`.
+
+At row 1, we assign the input_left_hash, the input_right_balance, the input_right_hash, the input_right_balance and the digest. 
+At this row we activate the `poseidon_chip` and call the `hash` function on that by passing as input cells `[input_left_hash, input_left_balance, input_right_hash, input_right_balance]`. This function will return the assigned cell containing the `computed_hash`.
+
+The chip contains 4 custom gates: 
+
+- If the `bool_selector` is on, checks that the value inside the c column is either 0 or 1
+- If the `swap_selector` is on, checks that the swap on the next row is performed correctly according to the `bit`
+- If the `sum_selector` is on, checks that the sum between the `input_left_balance` and the `input_right_balance` is equal to the `computed_sum`
+- checks that the `computed_hash` is equal to the hash of the `input_left_hash`, the `input_left_balance`, the `input_right_hash` and the `input_right_balance`. This hashing is enabled by the `poseidon_chip`.
+
+For the other levels of the tree:
+
+| a                         | b                       | c              |    d              |   e         | bool_selector | swap_selector | sum_selector  
+| --                        | -                       | --             |   ---             |  ---        |  --           | ---           |  ---
+| computed_hash_prev_level  | computed_sum_prev_level | element_hash   |element_balance    | index       |      1        | 1             |  0
+| input_left_hash           | input_left_balance      |input_right_hash|input_right_balance|computed_sum |     0         | 0             |  1
+
+When moving to the next level of the tree, the `computed_hash_prev_level` is copied from the `computed_hash` of the previous level. While the `computed_sum_prev_level` is copied from the `computed_sum` at the previous level.
+
+Furthermore, the chip contains four permutation check:
+
+- Verfies that the `leaf_hash` is equal to the `leaf_hash` passed as (public) value to the instance column
+- Verfies that the `leaf_balance` is equal to the `leaf_balance` passed as (public) value to the instance column
+- Verifies that the last `computed_hash` is equal to the (expected) `root` of the tree which is passed as (public) value to the instance column
+- Verifies that the last `computed_sum` is equal to the (expected) `balance_sum` of the tree which is passed as (public) value to the instance column
+
+TO DO: 
+- [x] Replace usage of constants in Inclusion Check.
+- [ ] Fix printing functions
+- [ ] Check the security of the Poseidon Hash
 
 
 

@@ -8,7 +8,7 @@ struct MyCircuit<F> {
     pub usernames: [Value<F>; 10],
     pub balances: [Value<F>; 10],
     pub inclusion_index: u8,
-    pub zero_val: Value<F>,
+    pub constant: F,
 }
 
 impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
@@ -25,6 +25,10 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
         let col_username_accumulator = meta.advice_column();
         let col_balance_accumulator = meta.advice_column();
         let instance = meta.instance_column();
+                
+        // Create a fixed column to load constants.
+        let constant = meta.fixed_column();
+
 
         InclusionCheckV2Chip::configure(
             meta,
@@ -35,6 +39,7 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
                 col_balance_accumulator,
             ],
             instance,
+            constant
         )
     }
 
@@ -50,7 +55,7 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
             layouter.namespace(|| "init table"),
             self.usernames,
             self.balances,
-            self.zero_val,
+            self.constant,
             self.inclusion_index,
         )?;
 
@@ -102,11 +107,13 @@ mod tests {
         // 8        | 16
         // 9        | 18
 
+        let constant = Fp::from(0);
+
         let circuit = MyCircuit::<Fp> {
             usernames,
             balances,
             inclusion_index: 7,
-            zero_val: Value::known(Fp::zero()),
+            constant,
         };
 
         // Test 1 - Inclusion check on a existing entry for the corresponding inclusion_index

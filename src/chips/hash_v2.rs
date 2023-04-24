@@ -31,8 +31,8 @@ impl<F: FieldExt> Hash2Chip<F> {
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
-        
-        // create check selector 
+
+        // create check selector
         let hash_selector = meta.selector();
 
         // Enable equality on the advice and instance column to enable permutation check

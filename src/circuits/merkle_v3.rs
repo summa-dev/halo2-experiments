@@ -1,42 +1,35 @@
 use super::super::chips::merkle_v3::{MerkleTreeV3Chip, MerkleTreeV3Config};
-use halo2_proofs::{circuit::*, plonk::*, halo2curves::pasta::Fp};
+use halo2_proofs::{circuit::*, arithmetic::FieldExt, plonk::*};
 
 #[derive(Default)]
-struct MerkleTreeV3Circuit {
-    pub leaf: Value<Fp>,
-    pub path_elements: Vec<Value<Fp>>,
-    pub path_indices: Vec<Value<Fp>>,
+struct MerkleTreeV3Circuit <F: FieldExt>{
+    pub leaf: Value<F>,
+    pub path_elements: Vec<Value<F>>,
+    pub path_indices: Vec<Value<F>>,
 }
 
-impl Circuit<Fp> for MerkleTreeV3Circuit {
-
-    type Config = MerkleTreeV3Config;
+impl <F:FieldExt> Circuit<F> for MerkleTreeV3Circuit<F> {
+    type Config = MerkleTreeV3Config<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
-
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         // config for the merkle tree chip
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
         let instance = meta.instance_column();
 
-
-        MerkleTreeV3Chip::configure(
-            meta,
-            [col_a, col_b, col_c],
-            instance,
-        )
+        MerkleTreeV3Chip::configure(meta, [col_a, col_b, col_c], instance)
     }
 
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = MerkleTreeV3Chip::construct(config);
         let leaf_cell = chip.assing_leaf(layouter.namespace(|| "assign leaf"), self.leaf)?;
@@ -69,8 +62,12 @@ impl Circuit<Fp> for MerkleTreeV3Circuit {
 #[cfg(test)]
 mod tests {
     use super::MerkleTreeV3Circuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128Pow5T3};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+
+    const WIDTH: usize = 3;
+    const RATE: usize = 2;
+    const L: usize = 2;
 
     fn compute_merkle_root(leaf: &u64, elements: &Vec<u64>, indices: &Vec<u64>) -> Fp {
         let k = elements.len();
@@ -83,7 +80,7 @@ mod tests {
                 message = [Fp::from(elements[i]), digest];
             }
 
-            digest = poseidon::Hash::<_, P128Pow5T3, ConstantLength<2>, 3, 2>::init()
+            digest = poseidon::Hash::<_, P128Pow5T3, ConstantLength<L>, WIDTH, RATE>::init()
                 .hash(message);
         }
         return digest;
@@ -94,9 +91,6 @@ mod tests {
         let leaf = 99u64;
         let elements = vec![1u64, 5u64, 6u64, 9u64, 9u64];
         let indices = vec![0u64, 0u64, 0u64, 0u64, 0u64];
-
-        // print leaf
-        println!("leaf: {}", leaf);
 
         let root = compute_merkle_root(&leaf, &elements, &indices);
 
@@ -123,7 +117,6 @@ mod tests {
         let wrong_public_input = vec![Fp::from(leaf), Fp::from(0)];
         let invalid_prover = MockProver::run(10, &circuit, vec![wrong_public_input]).unwrap();
         assert!(invalid_prover.verify().is_err());
-
     }
 }
 
