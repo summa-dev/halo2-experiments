@@ -55,17 +55,17 @@ impl Circuit<Fp> for OverflowCheckCircuitV2 {
         let decomposed_value_a = decomposing_value_a
             .iter()
             .rev()
-            .map(|x| Value::known(Fp::from(*x)))
+            .map(|x| Value::known(*x))
             .collect::<Vec<Value<Fp>>>();
         let decomposed_value_b = decomposing_value_b
             .iter()
             .rev()
-            .map(|x| Value::known(Fp::from(*x)))
+            .map(|x| Value::known(*x))
             .collect::<Vec<Value<Fp>>>();
         let decomposed_value_a_b = added_value_a_b
             .iter()
             .rev()
-            .map(|x| Value::known(Fp::from(*x)))
+            .map(|x| Value::known(*x))
             .collect::<Vec<Value<Fp>>>();
 
         // check overflow
@@ -73,26 +73,26 @@ impl Circuit<Fp> for OverflowCheckCircuitV2 {
             layouter.namespace(|| "checking overflow value a"),
             self.a,
             decomposed_value_a,
-        );
+        )?;
         chip.assign(
             layouter.namespace(|| "checking overflow value b"),
             self.b,
             decomposed_value_b,
-        );
+        )?;
         chip.assign(
             layouter.namespace(|| "checking overflow value a + b"),
             self.a + self.b,
             decomposed_value_a_b,
-        );
+        )?;
 
         Ok(())
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::OverflowCheckCircuitV2;
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
-    use std::panic;
     #[test]
     fn test_none_overflow_case() {
         let k = 4;
