@@ -1,9 +1,7 @@
-use num_bigint::BigUint;
 use std::fmt::Debug;
 
-use super::is_zero::{IsZeroChip, IsZeroConfig};
 use super::utils::{
-    decompose_bigInt_to_ubits, fp_to_big_uint, range_check_vec, value_fp_to_big_uint,
+    range_check_vec,
 };
 use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
 
