@@ -1,9 +1,10 @@
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
 use super::utils::fp_to_nbits;
+use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
 pub struct AddCarryConfig {
     pub advice: [Column<Advice>; 3],
+    pub constant: Column<Fixed>,
     pub instance: Column<Instance>,
     pub selector: Selector,
 }
@@ -21,6 +22,7 @@ impl AddCarryChip {
     pub fn configure(
         meta: &mut ConstraintSystem<Fp>,
         advice: [Column<Advice>; 3],
+        constant: Column<Fixed>,
         selector: Selector,
         instance: Column<Instance>,
     ) -> AddCarryConfig {
@@ -34,6 +36,9 @@ impl AddCarryChip {
         meta.enable_equality(col_b);
         meta.enable_equality(col_c);
         meta.enable_equality(instance);
+
+        // Enable constant column
+        meta.enable_constant(constant);
 
         // enforce dummy hash function by creating a custom gate
         meta.create_gate("accumulate constraint", |meta| {
@@ -54,6 +59,7 @@ impl AddCarryChip {
 
         AddCarryConfig {
             advice: [col_a, col_b, col_c],
+            constant,
             instance,
             selector: add_carry_selector,
         }
@@ -65,22 +71,20 @@ impl AddCarryChip {
         mut layouter: impl Layouter<Fp>,
     ) -> Result<(AssignedCell<Fp, Fp>, AssignedCell<Fp, Fp>), Error> {
         layouter.assign_region(
-            || "first row",
+            || "Initialize first row as zero",
             |mut region| {
-                let b_cell = region.assign_advice_from_instance(
+                let b_cell = region.assign_advice_from_constant(
                     || "first acc[1]",
-                    self.config.instance,
-                    0,
                     self.config.advice[1],
                     0,
+                    Fp::zero(),
                 )?;
 
-                let c_cell = region.assign_advice_from_instance(
+                let c_cell = region.assign_advice_from_constant(
                     || "first acc[2]",
-                    self.config.instance,
-                    1,
                     self.config.advice[2],
                     0,
+                    Fp::zero(),
                 )?;
 
                 Ok((b_cell, c_cell))
@@ -109,11 +113,13 @@ impl AddCarryChip {
 
                 // combine accumulated value and new
                 let mut sum = Fp::zero();
-                a.as_ref().map(|f| sum = sum.add(f));
+
                 prev_b
                     .value()
                     .map(|b| sum = sum.add(&b.mul(&Fp::from(1 << 16))));
                 prev_c.value().map(|c| sum = sum.add(c));
+
+                a.as_ref().map(|f| sum = sum.add(f));
 
                 // split by 16bits for two accumulator columns
                 // Alternatives
