@@ -36,7 +36,10 @@ impl AddCarryV2Chip {
         meta.enable_equality(col_c);
         meta.enable_equality(instance);
 
-        // enforce dummy hash function by creating a custom gate
+        // This custom gate has two constraints:
+        // 1. for each row, the previous accumulator amount + new value from a_cell
+        // 2. left most accumulator bit is zero for checking overflow
+        // Note that, if the value 'a' is more than 16bits, this chip could not get the correct result
         meta.create_gate("accumulate constraint", |meta| {
             let s = meta.query_selector(add_carry_selector);
             let prev_b = meta.query_advice(col_b, Rotation::prev());

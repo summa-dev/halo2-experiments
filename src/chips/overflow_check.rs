@@ -2,6 +2,7 @@ use halo2_proofs::{
     arithmetic::Field, circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation,
 };
 use super::is_zero::{IsZeroChip, IsZeroConfig};
+use super::utils::add_carry;
 
 #[derive(Debug, Clone)]
 pub struct OverFlowCheckConfig {
@@ -131,30 +132,30 @@ impl OverFlowChip {
         )
     }
 
-    fn add_carry<const MAX_BITS: u8>(
-        &self,
-        hi: AssignedCell<Fp, Fp>,
-        lo: AssignedCell<Fp, Fp>,
-        value: Value<Fp>,
-    ) -> (Fp, Fp) {
-        let max_bits = Fp::from(1 << MAX_BITS);
-        let mut sum = Fp::zero();
+    // fn add_carry<const MAX_BITS: u8>(
+    //     &self,
+    //     hi: AssignedCell<Fp, Fp>,
+    //     lo: AssignedCell<Fp, Fp>,
+    //     value: Value<Fp>,
+    // ) -> (Fp, Fp) {
+    //     let max_bits = Fp::from(1 << MAX_BITS);
+    //     let mut sum = Fp::zero();
 
-        // sum of all values
-        value.as_ref().map(|f| sum = sum.add(f));
-        hi.value().map(|f| sum = sum.add(&f.mul(&max_bits)));
-        lo.value().map(|f| sum = sum.add(f));
+    //     // sum of all values
+    //     value.as_ref().map(|f| sum = sum.add(f));
+    //     hi.value().map(|f| sum = sum.add(&f.mul(&max_bits)));
+    //     lo.value().map(|f| sum = sum.add(f));
 
-        // Iterate sum of all
-        let mut remains = sum;
-        let mut carry_count = Fp::zero();
-        while remains >= max_bits {
-            remains = remains.sub(&max_bits);
-            carry_count = carry_count.add(&Fp::one());
-        }
+    //     // Iterate sum of all
+    //     let mut remains = sum;
+    //     let mut carry_count = Fp::zero();
+    //     while remains >= max_bits {
+    //         remains = remains.sub(&max_bits);
+    //         carry_count = carry_count.add(&Fp::one());
+    //     }
 
-        (carry_count, remains)
-    }
+    //     (carry_count, remains)
+    // }
 
     pub fn assign_advice_row(
         &self,
@@ -186,7 +187,7 @@ impl OverFlowChip {
                 // Assign new value to the cell inside the region
                 region.assign_advice(|| "a", self.config.advice[0], 1, || a)?;
 
-                let (hi, lo) = self.add_carry::<16>(prev_c.clone(), prev_d.clone(), a);
+                let (hi, lo) = add_carry::<16>(a, prev_c.clone(), prev_d.clone());
 
                 // assigning two columns of accumulating value
                 let mut c_cell = region.assign_advice(
@@ -204,10 +205,10 @@ impl OverFlowChip {
 
                 let mut sum_overflow = Fp::zero();
                 if hi >= Fp::from(1 << 16) {
-                    let (ov, hi) = self.add_carry::<16>(
+                    let (ov, hi) = add_carry::<16>(
+                        Value::known(Fp::zero()),
                         prev_b.clone(),
                         c_cell.clone(),
-                        Value::known(Fp::zero()),
                     );
                     sum_overflow = ov;
                     c_cell = region.assign_advice(

@@ -47,6 +47,22 @@ pub fn fp_to_nbits<const N: usize>(value: &Fp) -> (Fp, Fp) {
     (accumulator, remains)
 }
 
+pub fn add_carry<const MAX_BITS: usize>(
+    value: Value<Fp>,
+    hi: AssignedCell<Fp, Fp>,
+    lo: AssignedCell<Fp, Fp>,
+) -> (Fp, Fp) {
+    let mut sum = Fp::zero();
+
+    // sum of all values
+    value.as_ref().map(|f| sum = sum.add(f));
+    hi.value().map(|f| sum = sum.add(&f.mul(&Fp::from(1 << MAX_BITS))));
+    lo.value().map(|f| sum = sum.add(f));
+
+    // Iterate sum of all
+    fp_to_nbits::<MAX_BITS>(&sum)
+}
+
 fn to_uint(sum: Fp) -> BigUint {
   let sum_str = format!("{:?}", sum);
   let (_, splited_sum_str) = sum_str.split_at(2); // remove '0x'

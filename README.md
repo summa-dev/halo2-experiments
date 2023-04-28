@@ -255,14 +255,14 @@ Circuit looks like this,
 
 | - | value  | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
 | - | ----      | ---      |   ---      | --|
-| 0 | - | 0 |  0xffff | 0 |
-| 1 | 0x1 | 0x1 |  0 | 0xffff |
-| 2 | - | - | - | 0x1 |
-| 3 | - | - | - | 0 |
+| 0 | - | 0 |  0 | 0x1 |
+| 1 | 0xffff | 0 |  0xffff | 0 |
+| 2 | 0x1 | 0x1 | 0 | - |
+| 3 | - | - | - | - |
 
 ### Configuration 
 
-the first rows's values assigned with instance, that would be replace 0 with using assign from constant (or zero value from instance) in future overflow gadget. And `assign_row` function needs values from first row as arguments, these will be copied for the region. and then permutation check like below. 
+the first rows's values assigned with zero. And `assign_advice_row` function needs values for addition, these will be copied cell from the region. and then permutation check like below. 
 
 ```Rust
 // following above table
