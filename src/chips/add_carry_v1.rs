@@ -1,4 +1,5 @@
 use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
+use super::utils::fp_to_nbits;
 
 #[derive(Debug, Clone)]
 pub struct AddCarryConfig {
@@ -118,18 +119,7 @@ impl AddCarryChip {
                 // Alternatives
                 // option1. using additional advice column for calculation
                 // option2. using lookup table for precalulated
-                let max_bits = Fp::from(1 << 16);
-                let split_by_16bits = || {
-                    let mut remains = sum.clone();
-                    let mut accumulator = Fp::zero();
-                    while remains >= max_bits {
-                        remains = remains.sub(&max_bits);
-                        accumulator = accumulator.add(&Fp::one());
-                    }
-                    (accumulator, remains)
-                };
-
-                let (hi, lo) = split_by_16bits();
+                let (hi, lo) = fp_to_nbits::<16>(&sum);
 
                 // assigning two columns of accumulating value
                 let b_cell = region.assign_advice(

@@ -36,6 +36,17 @@ pub fn fp_to_big_uint(value: &Fp) -> BigUint {
     to_uint(sum)
 }
 
+pub fn fp_to_nbits<const N: usize>(value: &Fp) -> (Fp, Fp) {
+    let max_bits = Fp::from(1 << N);
+    let mut remains = value.clone();
+    let mut accumulator = Fp::zero();
+    while remains >= max_bits {
+        remains = remains.sub(&max_bits);
+        accumulator = accumulator.add(&Fp::one());
+    }
+    (accumulator, remains)
+}
+
 fn to_uint(sum: Fp) -> BigUint {
   let sum_str = format!("{:?}", sum);
   let (_, splited_sum_str) = sum_str.split_at(2); // remove '0x'

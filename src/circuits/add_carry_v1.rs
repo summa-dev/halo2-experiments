@@ -51,13 +51,9 @@ mod tests {
     fn test_carry_1() {
         let k = 4;
 
-        // 
         // a: new value
-        // public_input[0]: x * 2^16 
-        // public_input[1]: x * 2^0
-        // 
         let a = Value::known(Fp::from(1));
-        let public_inputs = vec![Fp::from(0), Fp::from((1 << 16) - 1), Fp::from(1), Fp::from(0)]; // initial accumulated values
+        let public_inputs = vec![Fp::from(0), Fp::from((1 << 16) - 1), Fp::from(1), Fp::from(0)];
 
         let circuit = AddCarryCircuit { a };
         let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
