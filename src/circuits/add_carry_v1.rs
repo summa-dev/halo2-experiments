@@ -56,7 +56,7 @@ impl Circuit<Fp> for AddCarryCircuit {
 #[cfg(test)]
 mod tests {
     use super::AddCarryCircuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_proofs::{circuit::Value, dev::{MockProver, FailureLocation, VerifyFailure}, halo2curves::pasta::Fp, plonk::Any};
     #[test]
     fn test_carry_1() {
         let k = 4;
@@ -72,5 +72,37 @@ mod tests {
         let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
         prover.assert_satisfied();
         assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn test_carry_2() {
+        let k = 4;
+
+        // now a[1] is 2, which will cause carry lo 
+        let a = vec![
+            Value::known(Fp::from((1 << 16) - 1)),
+            Value::known(Fp::from(2)),
+        ];
+        let mut public_inputs = vec![Fp::from(1), Fp::from(0)]; // initial accumulated values
+
+        let circuit = AddCarryCircuit { a };
+        let invalid_prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        assert_eq!(
+            invalid_prover.verify(),
+            Err(vec![
+                VerifyFailure::Permutation { column: (Any::advice(), 2).into(), location: FailureLocation::InRegion {
+                    region: (2, "adivce row for accumulating").into(),
+                    offset: 1
+                    }
+                },
+                VerifyFailure::Permutation { column: (Any::Instance, 0).into(), location: FailureLocation::OutsideRegion { row: 1 } },
+            ])
+        );
+
+        // Result should be 1, 1
+        public_inputs = vec![Fp::from(1), Fp::from(1)];
+        let valid_prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        valid_prover.assert_satisfied();
+
     }
 }
