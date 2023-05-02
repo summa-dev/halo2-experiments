@@ -42,7 +42,7 @@ impl Circuit<Fp> for SafeAccumulatorCircuit {
     ) -> Result<(), Error> {
         let chip = SafeACcumulatorChip::construct(config);
 
-        let mut previous_accumulates = chip.assign(
+        let (mut assigned_cells, mut previous_accumulates) = chip.assign(
             layouter.namespace(|| "initial rows"),
             0,
             self.values[0],
@@ -53,17 +53,21 @@ impl Circuit<Fp> for SafeAccumulatorCircuit {
         // It may need multiple values who has multiple accounts in same identity
         // so, I just keep this code for now.
         let mut latest_accumulates: [Value<Fp>; 4];
-        for v in self.values.iter().skip(1) {
-            latest_accumulates = chip.assign(
+        for (i, v) in self.values.iter().skip(1).enumerate() {
+            (assigned_cells, latest_accumulates) = chip.assign(
                 layouter.namespace(|| "additional rows"),
-                0,
+                i,
                 *v,
                 previous_accumulates,
             ).unwrap();
             previous_accumulates = latest_accumulates;
         }
 
-        // TODO: check accumulates value with `expose_pubic` method
+        // check assigned cells values are correct with instance
+        for (i, cell) in assigned_cells.iter().rev().enumerate() {
+            chip.expose_public(layouter.namespace(|| format!("accumulate_{}", i)), cell, i);
+        }
+
         Ok(())
     }
 }
@@ -85,11 +89,45 @@ mod tests {
             Value::known(Fp::from((1 << 4) - 3)), // 0xd
         ];
 
+        let result_accumulated = vec![
+            Fp::from(0),
+            Fp::from(0),
+            Fp::from((1 << 4) - 1), // 0xf
+            Fp::from(1),            // 0x1
+        ];
+
         let circuit = SafeAccumulatorCircuit {
             values,
             accumulated_value,
         };
-        let prover = MockProver::run(k, &circuit, vec![vec![]]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![result_accumulated]).unwrap();
+        prover.assert_satisfied();
+    }
+
+    #[test]
+    fn test_none_overflow_case_with_multiple_values() {
+        let k = 8;
+
+        let values = vec![Value::known(Fp::from(1)), Value::known(Fp::from(3))];
+        let accumulated_value = [
+            Value::known(Fp::from(0)),
+            Value::known(Fp::from(0)),
+            Value::known(Fp::from((1 << 4) - 2)), // 0xe
+            Value::known(Fp::from((1 << 4) - 3)), // 0xd
+        ];
+
+        let result_accumulated = vec![
+            Fp::from(0),
+            Fp::from(0),
+            Fp::from((1 << 4) - 1), // 0xf
+            Fp::from(1),            // 0x1
+        ];
+
+        let circuit = SafeAccumulatorCircuit {
+            values,
+            accumulated_value,
+        };
+        let prover = MockProver::run(k, &circuit, vec![result_accumulated]).unwrap();
         prover.assert_satisfied();
     }
 
@@ -110,7 +148,6 @@ mod tests {
             accumulated_value,
         };
         let invalid_prover = MockProver::run(k, &circuit, vec![vec![]]).unwrap();
-        // invalid_prover.assert_satisfied();
         assert!(invalid_prover.verify().is_err());
     }
 }
