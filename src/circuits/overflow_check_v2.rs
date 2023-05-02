@@ -43,46 +43,18 @@ impl Circuit<Fp> for OverflowCheckCircuitV2 {
     ) -> Result<(), Error> {
         let chip = OverflowChipV2::construct(config);
 
-        // Just used helper function for decomposing. In other halo2 application used functions based on Field.
-        // Convert value to to bigUint
-        let decomposing_value_a = decompose_bigInt_to_ubits(&value_fp_to_big_uint(self.a), 4, 4);
-        let decomposing_value_b = decompose_bigInt_to_ubits(&value_fp_to_big_uint(self.b), 4, 4);
-        let added_value_a_b =
-            decompose_bigInt_to_ubits(&value_fp_to_big_uint(self.a + self.b), 4, 4);
-
-        // change decomposed type to Value<Fp>
-        // Note that, decomposed result is little edian. So, we need to reverse it.
-        let decomposed_value_a = decomposing_value_a
-            .iter()
-            .rev()
-            .map(|x| Value::known(*x))
-            .collect::<Vec<Value<Fp>>>();
-        let decomposed_value_b = decomposing_value_b
-            .iter()
-            .rev()
-            .map(|x| Value::known(*x))
-            .collect::<Vec<Value<Fp>>>();
-        let decomposed_value_a_b = added_value_a_b
-            .iter()
-            .rev()
-            .map(|x| Value::known(*x))
-            .collect::<Vec<Value<Fp>>>();
-
         // check overflow
         chip.assign(
             layouter.namespace(|| "checking overflow value a"),
-            self.a,
-            decomposed_value_a,
+            self.a
         )?;
         chip.assign(
             layouter.namespace(|| "checking overflow value b"),
             self.b,
-            decomposed_value_b,
         )?;
         chip.assign(
             layouter.namespace(|| "checking overflow value a + b"),
             self.a + self.b,
-            decomposed_value_a_b,
         )?;
 
         Ok(())

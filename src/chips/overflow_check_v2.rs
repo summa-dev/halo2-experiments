@@ -1,9 +1,7 @@
+use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
 use std::fmt::Debug;
 
-use super::utils::{
-    range_check_vec,
-};
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
+use super::utils::{decompose_bigInt_to_ubits, range_check_vec, value_fp_to_big_uint};
 
 #[derive(Debug, Clone)]
 pub struct OverflowCheckV2Config<const MAX_BITS: u8, const ACC_COLS: usize> {
@@ -69,16 +67,8 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
         &self,
         mut layouter: impl Layouter<Fp>,
         update_value: Value<Fp>,
-        decomposed_values: Vec<Value<Fp>>// [Value<Fp>; ACC_COLS], // ) -> Result<[AssignedCell<Fp, Fp>; ACC_COLS], Error> {
+        // decomposed_values: Vec<Value<Fp>>
     ) -> Result<(), Error> {
-        // check input value
-        // let mut sum = Fp::zero();
-        // update_value.as_ref().map(|f| sum = sum.add(f));
-        // assert!(
-        //     sum <= Fp::from(1 << 16),
-        //     "update value should less than or equal 2^16"
-        // );
-
         layouter.assign_region(
             || "assign decomposed values",
             |mut region| {
@@ -86,20 +76,19 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
                 self.config.selector.enable(&mut region, 0)?;
 
                 // Assign input value to the cell inside the region
-                region.assign_advice(
-                    || "assign value",
-                    self.config.value,
-                    0,
-                    || update_value,
-                )?;
+                region.assign_advice(|| "assign value", self.config.value, 0, || update_value)?;
 
-                // Assign
-                for (idx, val) in decomposed_values.iter().enumerate() {
+                // Just used helper function for decomposing. In other halo2 application used functions based on Field.
+                let decomposed_values =
+                    decompose_bigInt_to_ubits(&value_fp_to_big_uint(update_value), MAX_BITS as usize, ACC_COLS);
+
+                // Note that, decomposed result is little edian. So, we need to reverse it.
+                for (idx, val) in decomposed_values.iter().rev().enumerate() {
                     let _cell = region.assign_advice(
                         || format!("assign decomposed[{}] col", idx),
                         self.config.decomposed_values[idx],
                         0,
-                        || *val,
+                        || Value::known(*val),
                     )?;
                 }
 
