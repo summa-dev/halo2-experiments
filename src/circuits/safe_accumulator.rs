@@ -1,21 +1,23 @@
+use eth_types::Field;
+use halo2_proofs::{circuit::*, plonk::*};
+
 use super::super::chips::safe_accumulator::{SafeAccumulatorConfig, SafeACcumulatorChip};
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
 
 #[derive(Default)]
-struct SafeAccumulatorCircuit {
-    pub values: Vec<Value<Fp>>,
-    pub accumulated_value: [Value<Fp>; 4],
+struct SafeAccumulatorCircuit<F: Field> {
+    pub values: Vec<Value<F>>,
+    pub accumulated_value: [Value<F>; 4],
 }
 
-impl Circuit<Fp> for SafeAccumulatorCircuit {
-    type Config = SafeAccumulatorConfig<4, 4>; // 4 bits for each column and 4 columns
+impl<F: Field> Circuit<F> for SafeAccumulatorCircuit<F> {
+    type Config = SafeAccumulatorConfig<4, 4, F>; // 4 bits for each column and 4 columns
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         let new_value = meta.advice_column();
         let left_most_acc_inv = meta.advice_column();
         let carry_cols = [meta.advice_column(), meta.advice_column(), meta.advice_column(), meta.advice_column()];
@@ -24,7 +26,7 @@ impl Circuit<Fp> for SafeAccumulatorCircuit {
         let overflow_selector = meta.selector();
         let instance = meta.instance_column();
 
-        SafeACcumulatorChip::<4, 4>::configure(
+        SafeACcumulatorChip::<4, 4, F>::configure(
             meta,
             new_value,
             left_most_acc_inv,
@@ -38,7 +40,7 @@ impl Circuit<Fp> for SafeAccumulatorCircuit {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = SafeACcumulatorChip::construct(config);
 
@@ -52,7 +54,7 @@ impl Circuit<Fp> for SafeAccumulatorCircuit {
         // Actually, there is no need to multiple values for a single user.
         // It may need multiple values who has multiple accounts in same identity
         // so, I just keep this code for now.
-        let mut latest_accumulates: [Value<Fp>; 4];
+        let mut latest_accumulates: [Value<F>; 4];
         for (i, v) in self.values.iter().skip(1).enumerate() {
             (assigned_cells, latest_accumulates) = chip.assign(
                 layouter.namespace(|| "additional rows"),
@@ -75,7 +77,7 @@ impl Circuit<Fp> for SafeAccumulatorCircuit {
 #[cfg(test)]
 mod tests {
     use super::SafeAccumulatorCircuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::{pasta::Fp, FieldExt}};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::bn256::Fr as Fp};
 
     #[test]
     fn test_none_overflow_case() {
@@ -96,7 +98,7 @@ mod tests {
             Fp::from(1),            // 0x1
         ];
 
-        let circuit = SafeAccumulatorCircuit {
+        let circuit = SafeAccumulatorCircuit::<Fp> {
             values,
             accumulated_value,
         };

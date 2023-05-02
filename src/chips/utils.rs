@@ -1,7 +1,6 @@
-use std::str::FromStr;
+use eth_types::Field;
 
 use halo2_proofs::circuit::*;
-use halo2_proofs::halo2curves::pasta::Fp;
 use num_bigint::BigUint;
 use halo2_proofs::plonk::Expression;
 
@@ -24,72 +23,72 @@ fn parse_hex(hex_asm: &str) -> Vec<u8> {
     bytes
 }
 
-pub fn value_fp_to_big_uint(v: Value<Fp>) -> BigUint {
-    let mut sum = Fp::zero();
+pub fn value_f_to_big_uint<F: Field>(v: Value<F>) -> BigUint {
+    let mut sum = F::zero();
     v.as_ref().map(|f| sum = sum.add(f));
     to_uint(sum)
 }
 
-pub fn fp_to_big_uint(value: &Fp) -> BigUint {
-    let mut sum = Fp::zero();
+pub fn f_to_big_uint<F: Field>(value: &F) -> BigUint {
+    let mut sum = F::zero();
     sum = sum.add(value);
     to_uint(sum)
 }
 
-pub fn fp_to_nbits<const N: usize>(value: &Fp) -> (Fp, Fp) {
-    let max_bits = Fp::from(1 << N);
+pub fn f_to_nbits<const N: usize, F: Field>(value: &F) -> (F, F) {
+    let max_bits = F::from(1 << N);
     let mut remains = value.clone();
-    let mut accumulator = Fp::zero();
+    let mut accumulator = F::zero();
     while remains >= max_bits {
         remains = remains.sub(&max_bits);
-        accumulator = accumulator.add(&Fp::one());
+        accumulator = accumulator.add(&F::one());
     }
     (accumulator, remains)
 }
 
-pub fn add_carry<const MAX_BITS: usize>(
-    value: Value<Fp>,
-    hi: AssignedCell<Fp, Fp>,
-    lo: AssignedCell<Fp, Fp>,
-) -> (Fp, Fp) {
-    let mut sum = Fp::zero();
+pub fn add_carry<const MAX_BITS: usize, F: Field>(
+    value: Value<F>,
+    hi: AssignedCell<F, F>,
+    lo: AssignedCell<F, F>,
+) -> (F, F) {
+    let mut sum = F::zero();
 
     // sum of all values
     value.as_ref().map(|f| sum = sum.add(f));
-    hi.value().map(|f| sum = sum.add(&f.mul(&Fp::from(1 << MAX_BITS))));
+    hi.value().map(|f| sum = sum.add(&f.mul(&F::from(1 << MAX_BITS))));
     lo.value().map(|f| sum = sum.add(f));
 
     // Iterate sum of all
-    fp_to_nbits::<MAX_BITS>(&sum)
+    f_to_nbits::<MAX_BITS, F>(&sum)
 }
 
-fn to_uint(sum: Fp) -> BigUint {
+fn to_uint<F: Field>(sum: F) -> BigUint {
   let sum_str = format!("{:?}", sum);
   let (_, splited_sum_str) = sum_str.split_at(2); // remove '0x'
 
   BigUint::from_bytes_be(parse_hex(splited_sum_str).as_slice())
 }
 
-pub fn range_check_vec(
-    selector: &Expression<Fp>,
-    value_vec: Vec<Expression<Fp>>,
+pub fn range_check_vec<F: Field>(
+    selector: &Expression<F>,
+    value_vec: Vec<Expression<F>>,
     range: usize,
-) -> Vec<Expression<Fp>> {
-    let mut exprs: Vec<Expression<Fp>> = vec![];
+) -> Vec<Expression<F>> {
+    let mut exprs: Vec<Expression<F>> = vec![];
     for w in value_vec {
         let w_expr = (1..range).fold(w.clone(), |acc, i| {
-            acc * (Expression::Constant(Fp::from(i as u64)) - w.clone())
+            acc * (Expression::Constant(F::from(i as u64)) - w.clone())
         });
         exprs.push(selector.clone() * w_expr);
     }
     exprs
 }
 
-pub fn decompose_bigInt_to_ubits(
+pub fn decompose_bigInt_to_ubits<F: Field>(
   e: &BigUint,
   number_of_limbs: usize,
   bit_len: usize,
-) -> Vec<Fp> {
+) -> Vec<F> {
   debug_assert!(bit_len <= 64);
 
   let mut e = e.iter_u64_digits();
@@ -102,13 +101,13 @@ pub fn decompose_bigInt_to_ubits(
               let limb = u64_digit & mask;
               u64_digit >>= bit_len;
               rem -= bit_len;
-              Fp::from(limb)
+              F::from(limb)
           }
           core::cmp::Ordering::Equal => {
               let limb = u64_digit & mask;
               u64_digit = e.next().unwrap_or(0);
               rem = 64;
-              Fp::from(limb)
+              F::from(limb)
           }
           core::cmp::Ordering::Less => {
               let mut limb = u64_digit;
@@ -116,7 +115,7 @@ pub fn decompose_bigInt_to_ubits(
               limb |= (u64_digit & ((1 << (bit_len - rem)) - 1)) << rem; // *
               u64_digit >>= bit_len - rem;
               rem += 64 - bit_len;
-              Fp::from(limb)
+              F::from(limb)
           }
       })
       .collect()

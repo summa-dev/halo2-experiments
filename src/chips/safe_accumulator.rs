@@ -1,41 +1,42 @@
 use std::fmt::Debug;
 use num_bigint::BigUint;
 use arrayvec::ArrayVec;
+use eth_types::Field;
 
 use super::is_zero::{IsZeroChip, IsZeroConfig};
-use super::utils::{decompose_bigInt_to_ubits, fp_to_big_uint, value_fp_to_big_uint, range_check_vec};
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
+use super::utils::{decompose_bigInt_to_ubits, f_to_big_uint, value_f_to_big_uint, range_check_vec};
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
-pub struct SafeAccumulatorConfig<const MAX_BITS: u8, const ACC_COLS: usize> {
+pub struct SafeAccumulatorConfig<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> {
     pub update_value: Column<Advice>,
     pub left_most_inv: Column<Advice>,
     pub add_carries: [Column<Advice>; ACC_COLS],
     pub accumulate: [Column<Advice>; ACC_COLS],
     pub instance: Column<Instance>,
-    pub is_zero: IsZeroConfig,
+    pub is_zero: IsZeroConfig<F>,
     pub selector: [Selector; 2],
 }
 
 #[derive(Debug, Clone)]
-pub struct SafeACcumulatorChip<const MAX_BITS: u8, const ACC_COLS: usize> {
-    config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS>,
+pub struct SafeACcumulatorChip<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> {
+    config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS, F>,
 }
 
-impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, ACC_COLS> {
-    pub fn construct(config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS>) -> Self {
+impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MAX_BITS, ACC_COLS, F> {
+    pub fn construct(config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS, F>) -> Self {
         Self { config }
     }
 
     pub fn configure(
-        meta: &mut ConstraintSystem<Fp>,
+        meta: &mut ConstraintSystem<F>,
         update_value: Column<Advice>,
         left_most_inv: Column<Advice>,
         add_carries: [Column<Advice>; ACC_COLS],
         accumulate: [Column<Advice>; ACC_COLS],
         selector: [Selector; 2],
         instance: Column<Instance>,
-    ) -> SafeAccumulatorConfig<MAX_BITS, ACC_COLS> {
+    ) -> SafeAccumulatorConfig<MAX_BITS, ACC_COLS, F> {
         let add_carry_selector = selector[0];
         let overflow_check_selector = selector[1];
 
@@ -62,15 +63,15 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, AC
 
             let previous_acc = (0..ACC_COLS)
                 .map(|i| meta.query_advice(accumulate[i], Rotation::prev()))
-                .collect::<Vec<Expression<Fp>>>();
+                .collect::<Vec<Expression<F>>>();
             let carries_acc = (0..ACC_COLS)
                 .map(|i| meta.query_advice(add_carries[i], Rotation::cur()))
-                .collect::<Vec<Expression<Fp>>>();
+                .collect::<Vec<Expression<F>>>();
             let updated_acc = (0..ACC_COLS)
                 .map(|i| meta.query_advice(accumulate[i], Rotation::cur()))
-                .collect::<Vec<Expression<Fp>>>();
+                .collect::<Vec<Expression<F>>>();
 
-            let shift_next_chunk = Expression::Constant(Fp::from(1 << MAX_BITS));
+            let shift_next_chunk = Expression::Constant(F::from(1 << MAX_BITS));
 
             // Add the value to the rightmost accumulation column.
             //
@@ -124,10 +125,10 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, AC
                         * ((updated_acc[i].clone() + (carries_acc[i].clone() * shift_next_chunk.clone()))
                             - (previous_acc[i].clone() + carries_acc[i + 1].clone()))
                 })
-                .collect::<Vec<Expression<Fp>>>();
+                .collect::<Vec<Expression<F>>>();
 
             let check_overflow_expr =
-                vec![s_over.clone() * (Expression::Constant(Fp::one()) - is_zero.expr())];
+                vec![s_over.clone() * (Expression::Constant(F::one()) - is_zero.expr())];
 
             [
                 check_add_value_exprs,
@@ -152,15 +153,15 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, AC
 
     pub fn assign(
         &self,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
         offset: usize,
-        update_value: Value<Fp>,
-        accumulated_values: [Value<Fp>; ACC_COLS],
-    ) -> Result<(ArrayVec<AssignedCell<Fp, Fp>, ACC_COLS>, [Value<Fp>; ACC_COLS]), Error>  {
-        let mut sum = Fp::zero();
+        update_value: Value<F>,
+        accumulated_values: [Value<F>; ACC_COLS],
+    ) -> Result<(ArrayVec<AssignedCell<F, F>, ACC_COLS>, [Value<F>; ACC_COLS]), Error>  {
+        let mut sum = F::zero();
         update_value.as_ref().map(|f| sum = sum.add(f));
         assert!(
-            sum <= Fp::from(1 << MAX_BITS),
+            sum <= F::from(1 << MAX_BITS),
             "update value should less than or equal 2^{MAX_BITS}"
         );
 
@@ -172,7 +173,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, AC
                 self.config.selector[0].enable(&mut region, offset + 1)?;
                 self.config.selector[1].enable(&mut region, offset + 1)?;
 
-                let mut sum_big_uint = fp_to_big_uint(&sum);
+                let mut sum_big_uint = f_to_big_uint(&sum);
 
                 // Assign new value to the cell inside the region
                 region.assign_advice(
@@ -195,14 +196,14 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, AC
                 // Calculates updated accumulate value
                 for (idx, acc_val) in accumulated_values.iter().enumerate().rev() {
                     let shift_bits = MAX_BITS as usize * ((ACC_COLS - 1) - idx);
-                    sum_big_uint += value_fp_to_big_uint(*acc_val) << shift_bits;
+                    sum_big_uint += value_f_to_big_uint(*acc_val) << shift_bits;
 
                     // calculate carried sum and assign
                     // if `sum_big_uint` is higher than `1 << shift_bits` assign carried value 1
-                    let mut carry_flag = Fp::zero();
+                    let mut carry_flag = F::zero();
                     let shift_mask = BigUint::new(vec![1 << (MAX_BITS as usize + shift_bits)]);
                     if sum_big_uint >= shift_mask && idx > 0 {
-                        carry_flag = Fp::one();
+                        carry_flag = F::one();
                     }
 
                     let _ = region.assign_advice(
@@ -214,10 +215,10 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, AC
                 }
 
                 // decomposed result is little-endian, so the vector is opposite to the order of the columns
-                let decomposed_sum_big_uint = decompose_bigInt_to_ubits(&sum_big_uint, ACC_COLS, MAX_BITS as usize);
+                let decomposed_sum_big_uint: Vec<F> = decompose_bigInt_to_ubits(&sum_big_uint, ACC_COLS, MAX_BITS as usize);
 
-                let mut updated_accumulates: [Value<Fp>; ACC_COLS] = [Value::known(Fp::zero()); ACC_COLS];
-                let mut assigned_cells: ArrayVec<AssignedCell<Fp, Fp>, ACC_COLS> = ArrayVec::new();
+                let mut updated_accumulates: [Value<F>; ACC_COLS] = [Value::known(F::zero()); ACC_COLS];
+                let mut assigned_cells: ArrayVec<AssignedCell<F, F>, ACC_COLS> = ArrayVec::new();
                 let left_most_idx = ACC_COLS - 1;
                 for (i, v) in decomposed_sum_big_uint.iter().enumerate() {
                     // a value in left most columns is overflow
@@ -243,8 +244,8 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> SafeACcumulatorChip<MAX_BITS, AC
     // Enforce permutation check between b & cell and instance column
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        cell: &AssignedCell<Fp, Fp>,
+        mut layouter: impl Layouter<F>,
+        cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(cell.cell(), self.config.instance, row)

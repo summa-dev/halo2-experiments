@@ -1,7 +1,9 @@
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
 use std::fmt::Debug;
+use eth_types::Field;
+use std::marker::PhantomData;
 
-use super::utils::{decompose_bigInt_to_ubits, range_check_vec, value_fp_to_big_uint};
+use super::utils::{decompose_bigInt_to_ubits, range_check_vec, value_f_to_big_uint};
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
 pub struct OverflowCheckV2Config<const MAX_BITS: u8, const ACC_COLS: usize> {
@@ -12,17 +14,21 @@ pub struct OverflowCheckV2Config<const MAX_BITS: u8, const ACC_COLS: usize> {
 }
 
 #[derive(Debug, Clone)]
-pub struct OverflowChipV2<const MAX_BITS: u8, const ACC_COLS: usize> {
+pub struct OverflowChipV2<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> {
     config: OverflowCheckV2Config<MAX_BITS, ACC_COLS>,
+    _marker: PhantomData<F>,
 }
 
-impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COLS> {
+impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BITS, ACC_COLS, F> {
     pub fn construct(config: OverflowCheckV2Config<MAX_BITS, ACC_COLS>) -> Self {
-        Self { config }
+        Self {
+            config,
+            _marker: PhantomData,
+        }
     }
 
     pub fn configure(
-        meta: &mut ConstraintSystem<Fp>,
+        meta: &mut ConstraintSystem<F>,
         value: Column<Advice>,
         decomposed_values: [Column<Advice>; ACC_COLS],
         instance: Column<Instance>,
@@ -43,7 +49,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
             let decomposed_value_sum =
                 (0..=ACC_COLS - 2).fold(decomposed_value_vec[ACC_COLS - 1].clone(), |acc, i| {
                     acc + (decomposed_value_vec[i].clone()
-                        * Expression::Constant(Fp::from(
+                        * Expression::Constant(F::from(
                             1 << (MAX_BITS as usize * ((ACC_COLS - 1) - i)),
                         )))
                 });
@@ -65,9 +71,8 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
 
     pub fn assign(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        update_value: Value<Fp>,
-        // decomposed_values: Vec<Value<Fp>>
+        mut layouter: impl Layouter<F>,
+        update_value: Value<F>,
     ) -> Result<(), Error> {
         layouter.assign_region(
             || "assign decomposed values",
@@ -79,8 +84,11 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
                 region.assign_advice(|| "assign value", self.config.value, 0, || update_value)?;
 
                 // Just used helper function for decomposing. In other halo2 application used functions based on Field.
-                let decomposed_values =
-                    decompose_bigInt_to_ubits(&value_fp_to_big_uint(update_value), MAX_BITS as usize, ACC_COLS);
+                let decomposed_values = decompose_bigInt_to_ubits(
+                    &value_f_to_big_uint(update_value),
+                    MAX_BITS as usize,
+                    ACC_COLS,
+                ) as Vec<F>;
 
                 // Note that, decomposed result is little edian. So, we need to reverse it.
                 for (idx, val) in decomposed_values.iter().rev().enumerate() {
@@ -100,8 +108,8 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize> OverflowChipV2<MAX_BITS, ACC_COL
     // Enforce permutation check between b & cell and instance column
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        cell: &AssignedCell<Fp, Fp>,
+        mut layouter: impl Layouter<F>,
+        cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(cell.cell(), self.config.instance, row)

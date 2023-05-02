@@ -1,31 +1,34 @@
-use super::utils::fp_to_nbits;
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation};
+use super::utils::f_to_nbits;
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
+use std::marker::PhantomData;
+use eth_types::Field;
 
 #[derive(Debug, Clone)]
-pub struct AddCarryConfig {
+pub struct AddCarryConfig<F: Field> {
     pub advice: [Column<Advice>; 3],
     pub constant: Column<Fixed>,
     pub instance: Column<Instance>,
     pub selector: Selector,
+    pub _marker: PhantomData<F>
 }
 
 #[derive(Debug, Clone)]
-pub struct AddCarryChip {
-    config: AddCarryConfig,
+pub struct AddCarryChip<F: Field> {
+    config: AddCarryConfig<F>, 
 }
 
-impl AddCarryChip {
-    pub fn construct(config: AddCarryConfig) -> Self {
+impl<F: Field> AddCarryChip<F> {
+    pub fn construct(config: AddCarryConfig<F>) -> Self {
         Self { config }
     }
 
     pub fn configure(
-        meta: &mut ConstraintSystem<Fp>,
+        meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 3],
         constant: Column<Fixed>,
         selector: Selector,
         instance: Column<Instance>,
-    ) -> AddCarryConfig {
+    ) -> AddCarryConfig<F> {
         let col_a = advice[0];
         let col_b = advice[1];
         let col_c = advice[2];
@@ -52,8 +55,8 @@ impl AddCarryChip {
             // Previous accumulator amount + new value from a_cell
             // using binary expression (x_n-4 * 2^16) + (x_n-3 * 2^8) + ... + (x_n * 2)
             vec![
-                s * ((a + (prev_b * Expression::Constant(Fp::from(1 << 16))) + prev_c)
-                    - ((b * Expression::Constant(Fp::from(1 << 16))) + c)),
+                s * ((a + (prev_b * Expression::Constant(F::from(1 << 16))) + prev_c)
+                    - ((b * Expression::Constant(F::from(1 << 16))) + c)),
             ]
         });
 
@@ -62,14 +65,15 @@ impl AddCarryChip {
             constant,
             instance,
             selector: add_carry_selector,
+            _marker: PhantomData,
         }
     }
 
     // Initial accumulator values from instance for expreiment
     pub fn assign_first_row(
         &self,
-        mut layouter: impl Layouter<Fp>,
-    ) -> Result<(AssignedCell<Fp, Fp>, AssignedCell<Fp, Fp>), Error> {
+        mut layouter: impl Layouter<F>,
+    ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> {
         layouter.assign_region(
             || "Initialize first row as zero",
             |mut region| {
@@ -77,14 +81,14 @@ impl AddCarryChip {
                     || "first acc[1]",
                     self.config.advice[1],
                     0,
-                    Fp::zero(),
+                    F::zero(),
                 )?;
 
                 let c_cell = region.assign_advice_from_constant(
                     || "first acc[2]",
                     self.config.advice[2],
                     0,
-                    Fp::zero(),
+                    F::zero(),
                 )?;
 
                 Ok((b_cell, c_cell))
@@ -94,11 +98,11 @@ impl AddCarryChip {
 
     pub fn assign_advice_row(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        a: Value<Fp>,
-        prev_b: AssignedCell<Fp, Fp>,
-        prev_c: AssignedCell<Fp, Fp>,
-    ) -> Result<(AssignedCell<Fp, Fp>, AssignedCell<Fp, Fp>), Error> {
+        mut layouter: impl Layouter<F>,
+        a: Value<F>,
+        prev_b: AssignedCell<F, F>,
+        prev_c: AssignedCell<F, F>,
+    ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>), Error> {
         layouter.assign_region(
             || "adivce row for accumulating",
             |mut region| {
@@ -112,11 +116,11 @@ impl AddCarryChip {
                 region.assign_advice(|| "a", self.config.advice[0], 1, || a)?;
 
                 // combine accumulated value and new
-                let mut sum = Fp::zero();
+                let mut sum = F::zero();
 
                 prev_b
                     .value()
-                    .map(|b| sum = sum.add(&b.mul(&Fp::from(1 << 16))));
+                    .map(|b| sum = sum.add(&b.mul(&F::from(1 << 16))));
                 prev_c.value().map(|c| sum = sum.add(c));
 
                 a.as_ref().map(|f| sum = sum.add(f));
@@ -125,7 +129,7 @@ impl AddCarryChip {
                 // Alternatives
                 // option1. using additional advice column for calculation
                 // option2. using lookup table for precalulated
-                let (hi, lo) = fp_to_nbits::<16>(&sum);
+                let (hi, lo) = f_to_nbits::<16, F>(&sum);
 
                 // assigning two columns of accumulating value
                 let b_cell = region.assign_advice(
@@ -149,8 +153,8 @@ impl AddCarryChip {
     // Enforce permutation check between b & cell and instance column
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        cell: &AssignedCell<Fp, Fp>,
+        mut layouter: impl Layouter<F>,
+        cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(cell.cell(), self.config.instance, row)

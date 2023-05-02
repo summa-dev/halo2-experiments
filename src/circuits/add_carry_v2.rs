@@ -1,13 +1,15 @@
+use eth_types::Field;
+
+use halo2_proofs::{circuit::*, plonk::*};
+
 use super::super::chips::add_carry_v2::{AddCarryV2Chip, AddCarryV2Config};
 
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
-
 #[derive(Default)]
-struct AddCarryCircuit {
-    pub a: Value<Fp>,
+struct AddCarryCircuit<F: Field> {
+    pub a: Value<F>,
 }
 
-impl Circuit<Fp> for AddCarryCircuit {
+impl<F: Field> Circuit<F> for AddCarryCircuit<F> {
     type Config = AddCarryV2Config;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -15,7 +17,7 @@ impl Circuit<Fp> for AddCarryCircuit {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         let col_a = meta.advice_column();
         let col_b_inv = meta.advice_column();
         let col_b = meta.advice_column();
@@ -29,7 +31,7 @@ impl Circuit<Fp> for AddCarryCircuit {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = AddCarryV2Chip::construct(config);
 
@@ -47,7 +49,7 @@ impl Circuit<Fp> for AddCarryCircuit {
 #[cfg(test)]
 mod tests {
     use super::AddCarryCircuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::bn256::Fr as Fp};
     #[test]
     fn test_carry_2() {
         let k = 4;

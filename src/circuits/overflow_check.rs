@@ -1,21 +1,22 @@
+use eth_types::Field;
+use halo2_proofs::{circuit::*, plonk::*};
+
 use super::super::chips::overflow_check::{OverFlowCheckConfig, OverFlowChip};
 
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
-
 #[derive(Default)]
-struct OverflowCheckCircuit {
-    pub a: Value<Fp>,
+struct OverflowCheckCircuit<F: Field> {
+    pub a: Value<F>,
 }
 
-impl Circuit<Fp> for OverflowCheckCircuit {
-    type Config = OverFlowCheckConfig;
+impl<F: Field> Circuit<F> for OverflowCheckCircuit<F> {
+    type Config = OverFlowCheckConfig<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         let col_a = meta.advice_column();
         let col_b_inv = meta.advice_column();
         let col_b = meta.advice_column();
@@ -36,7 +37,7 @@ impl Circuit<Fp> for OverflowCheckCircuit {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = OverFlowChip::construct(config);
 
@@ -63,7 +64,7 @@ impl Circuit<Fp> for OverflowCheckCircuit {
 mod tests {
     use std::panic;
     use super::OverflowCheckCircuit;
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::bn256::Fr as Fp};
     #[test]
     fn test_none_overflow_case() {
         let k = 4;

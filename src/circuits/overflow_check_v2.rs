@@ -1,16 +1,16 @@
-use crate::chips::utils::{decompose_bigInt_to_ubits, value_fp_to_big_uint};
+use eth_types::Field;
+use halo2_proofs::{circuit::*, plonk::*};
 
 use super::super::chips::overflow_check_v2::{OverflowCheckV2Config, OverflowChipV2};
-
-use halo2_proofs::{circuit::*, halo2curves::pasta::Fp, plonk::*};
+// use crate::chips::utils::{decompose_bigInt_to_ubits, value_f_to_big_uint};
 
 #[derive(Default)]
-struct OverflowCheckCircuitV2 {
-    pub a: Value<Fp>,
-    pub b: Value<Fp>,
+struct OverflowCheckCircuitV2<F: Field> {
+    pub a: Value<F>,
+    pub b: Value<F>,
 }
 
-impl Circuit<Fp> for OverflowCheckCircuitV2 {
+impl<F: Field> Circuit<F> for OverflowCheckCircuitV2<F> {
     type Config = OverflowCheckV2Config<4, 4>;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -18,7 +18,7 @@ impl Circuit<Fp> for OverflowCheckCircuitV2 {
         Self::default()
     }
 
-    fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
         let col_c = meta.advice_column();
@@ -39,7 +39,7 @@ impl Circuit<Fp> for OverflowCheckCircuitV2 {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = OverflowChipV2::construct(config);
 
@@ -64,7 +64,7 @@ impl Circuit<Fp> for OverflowCheckCircuitV2 {
 #[cfg(test)]
 mod tests {
     use super::OverflowCheckCircuitV2;
-    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::pasta::Fp};
+    use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::bn256::Fr as Fp};
     #[test]
     fn test_none_overflow_case() {
         let k = 4;
@@ -73,7 +73,7 @@ mod tests {
         let a = Value::known(Fp::from((1 << 16) - 2));
         let b = Value::known(Fp::from(1));
 
-        let circuit = OverflowCheckCircuitV2 { a, b };
+        let circuit = OverflowCheckCircuitV2::<Fp> { a, b };
         let prover = MockProver::run(k, &circuit, vec![vec![]]).unwrap();
         prover.assert_satisfied();
     }

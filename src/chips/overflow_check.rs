@@ -1,33 +1,38 @@
-use halo2_proofs::{
-    arithmetic::Field, circuit::*, halo2curves::pasta::Fp, plonk::*, poly::Rotation,
-};
+use eth_types::Field;
+use std::marker::PhantomData;
+
 use super::is_zero::{IsZeroChip, IsZeroConfig};
 use super::utils::add_carry;
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
-pub struct OverFlowCheckConfig {
+pub struct OverFlowCheckConfig<F: Field> {
     pub advice: [Column<Advice>; 5],
     pub instance: Column<Instance>,
-    pub is_zero: IsZeroConfig,
+    pub is_zero: IsZeroConfig<F>,
     pub selector: [Selector; 2],
 }
 
 #[derive(Debug, Clone)]
-pub struct OverFlowChip {
-    config: OverFlowCheckConfig,
+pub struct OverFlowChip<F: Field> {
+    config: OverFlowCheckConfig<F>,
+    _marker: PhantomData<F>,
 }
 
-impl OverFlowChip {
-    pub fn construct(config: OverFlowCheckConfig) -> Self {
-        Self { config }
+impl<F: Field> OverFlowChip<F> {
+    pub fn construct(config: OverFlowCheckConfig<F>) -> Self {
+        Self {
+            config,
+            _marker: PhantomData,
+        }
     }
 
     pub fn configure(
-        meta: &mut ConstraintSystem<Fp>,
+        meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 5],
         selector: [Selector; 2],
         instance: Column<Instance>,
-    ) -> OverFlowCheckConfig {
+    ) -> OverFlowCheckConfig<F> {
         let col_a = advice[0];
         let col_b_inv = advice[1];
         let col_b = advice[2];
@@ -40,7 +45,7 @@ impl OverFlowChip {
             |meta| meta.query_selector(overflow_check_selector),
             |meta| meta.query_advice(col_b, Rotation::cur()),
             // |meta| meta.query_advice(col_b_inv, Rotation::cur())
-            col_b_inv
+            col_b_inv,
         );
 
         // Enable equality on the advice and instance column to enable permutation check
@@ -68,15 +73,15 @@ impl OverFlowChip {
             vec![
                 s_add
                     * ((a
-                        + (prev_b * Expression::Constant(Fp::from(1 << 32)))
-                        + (prev_c * Expression::Constant(Fp::from(1 << 16)))
+                        + (prev_b * Expression::Constant(F::from(1 << 32)))
+                        + (prev_c * Expression::Constant(F::from(1 << 16)))
                         + prev_d)
-                        - ((b.clone() * Expression::Constant(Fp::from(1 << 32)))
-                            + (c * Expression::Constant(Fp::from(1 << 16)))
+                        - ((b.clone() * Expression::Constant(F::from(1 << 32)))
+                            + (c * Expression::Constant(F::from(1 << 16)))
                             + d)),
                 // check 'b' is zero
                 // s_over.clone() * (a_equals_b.expr() * (output.clone() - c)),
-                s_over * (Expression::Constant(Fp::one()) - is_zero.expr()),
+                s_over * (Expression::Constant(F::one()) - is_zero.expr()),
             ]
         });
 
@@ -91,12 +96,12 @@ impl OverFlowChip {
     // Initial accumulator values from instance for expreiment
     pub fn assign_first_row(
         &self,
-        mut layouter: impl Layouter<Fp>,
+        mut layouter: impl Layouter<F>,
     ) -> Result<
         (
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
+            AssignedCell<F, F>,
+            AssignedCell<F, F>,
+            AssignedCell<F, F>,
         ),
         Error,
     > {
@@ -134,12 +139,12 @@ impl OverFlowChip {
 
     // fn add_carry<const MAX_BITS: u8>(
     //     &self,
-    //     hi: AssignedCell<Fp, Fp>,
-    //     lo: AssignedCell<Fp, Fp>,
-    //     value: Value<Fp>,
-    // ) -> (Fp, Fp) {
-    //     let max_bits = Fp::from(1 << MAX_BITS);
-    //     let mut sum = Fp::zero();
+    //     hi: AssignedCell<F, F>,
+    //     lo: AssignedCell<F, F>,
+    //     value: Value<F>,
+    // ) -> (F, F) {
+    //     let max_bits = F::from(1 << MAX_BITS);
+    //     let mut sum = F::zero();
 
     //     // sum of all values
     //     value.as_ref().map(|f| sum = sum.add(f));
@@ -148,10 +153,10 @@ impl OverFlowChip {
 
     //     // Iterate sum of all
     //     let mut remains = sum;
-    //     let mut carry_count = Fp::zero();
+    //     let mut carry_count = F::zero();
     //     while remains >= max_bits {
     //         remains = remains.sub(&max_bits);
-    //         carry_count = carry_count.add(&Fp::one());
+    //         carry_count = carry_count.add(&F::one());
     //     }
 
     //     (carry_count, remains)
@@ -159,16 +164,16 @@ impl OverFlowChip {
 
     pub fn assign_advice_row(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        a: Value<Fp>,
-        prev_b: AssignedCell<Fp, Fp>,
-        prev_c: AssignedCell<Fp, Fp>,
-        prev_d: AssignedCell<Fp, Fp>,
+        mut layouter: impl Layouter<F>,
+        a: Value<F>,
+        prev_b: AssignedCell<F, F>,
+        prev_c: AssignedCell<F, F>,
+        prev_d: AssignedCell<F, F>,
     ) -> Result<
         (
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
-            AssignedCell<Fp, Fp>,
+            AssignedCell<F, F>,
+            AssignedCell<F, F>,
+            AssignedCell<F, F>,
         ),
         Error,
     > {
@@ -187,7 +192,7 @@ impl OverFlowChip {
                 // Assign new value to the cell inside the region
                 region.assign_advice(|| "a", self.config.advice[0], 1, || a)?;
 
-                let (hi, lo) = add_carry::<16>(a, prev_c.clone(), prev_d.clone());
+                let (hi, lo) = add_carry::<16, F>(a, prev_c.clone(), prev_d.clone());
 
                 // assigning two columns of accumulating value
                 let mut c_cell = region.assign_advice(
@@ -203,13 +208,10 @@ impl OverFlowChip {
                     || Value::known(lo),
                 )?;
 
-                let mut sum_overflow = Fp::zero();
-                if hi >= Fp::from(1 << 16) {
-                    let (ov, hi) = add_carry::<16>(
-                        Value::known(Fp::zero()),
-                        prev_b.clone(),
-                        c_cell.clone(),
-                    );
+                let mut sum_overflow = F::zero();
+                if hi >= F::from(1 << 16) {
+                    let (ov, hi) =
+                        add_carry::<16, F>(Value::known(F::zero()), prev_b.clone(), c_cell.clone());
                     sum_overflow = ov;
                     c_cell = region.assign_advice(
                         || "sum_hi",
@@ -237,8 +239,8 @@ impl OverFlowChip {
     // Enforce permutation check between b & cell and instance column
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<Fp>,
-        cell: &AssignedCell<Fp, Fp>,
+        mut layouter: impl Layouter<F>,
+        cell: &AssignedCell<F, F>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(cell.cell(), self.config.instance, row)
