@@ -34,7 +34,6 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
         instance: Column<Instance>,
         selector: Selector,
     ) -> OverflowCheckV2Config<MAX_BITS, ACC_COLS> {
-        meta.enable_equality(value);
         decomposed_values.map(|col| meta.enable_equality(col));
 
         meta.create_gate("range check decomposed values", |meta| {

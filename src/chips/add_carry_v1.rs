@@ -35,7 +35,6 @@ impl<F: Field> AddCarryChip<F> {
         let add_carry_selector = selector;
 
         // Enable equality on the advice and instance column to enable permutation check
-        meta.enable_equality(col_a);
         meta.enable_equality(col_b);
         meta.enable_equality(col_c);
         meta.enable_equality(instance);

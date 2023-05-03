@@ -49,8 +49,6 @@ impl<F: Field> OverFlowChip<F> {
         );
 
         // Enable equality on the advice and instance column to enable permutation check
-        meta.enable_equality(col_a);
-        meta.enable_equality(col_b_inv);
         meta.enable_equality(col_b);
         meta.enable_equality(col_c);
         meta.enable_equality(col_d);

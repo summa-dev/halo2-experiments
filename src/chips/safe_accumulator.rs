@@ -48,9 +48,6 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MA
         );
 
         // Enable equality on the advice and instance column to enable permutation check
-        meta.enable_equality(instance);
-        meta.enable_equality(update_value);
-        meta.enable_equality(left_most_inv);
         accumulate.map(|col| meta.enable_equality(col));
         add_carries.map(|col| meta.enable_equality(col));
 
