@@ -135,31 +135,6 @@ impl<F: Field> OverFlowChip<F> {
         )
     }
 
-    // fn add_carry<const MAX_BITS: u8>(
-    //     &self,
-    //     hi: AssignedCell<F, F>,
-    //     lo: AssignedCell<F, F>,
-    //     value: Value<F>,
-    // ) -> (F, F) {
-    //     let max_bits = F::from(1 << MAX_BITS);
-    //     let mut sum = F::zero();
-
-    //     // sum of all values
-    //     value.as_ref().map(|f| sum = sum.add(f));
-    //     hi.value().map(|f| sum = sum.add(&f.mul(&max_bits)));
-    //     lo.value().map(|f| sum = sum.add(f));
-
-    //     // Iterate sum of all
-    //     let mut remains = sum;
-    //     let mut carry_count = F::zero();
-    //     while remains >= max_bits {
-    //         remains = remains.sub(&max_bits);
-    //         carry_count = carry_count.add(&F::one());
-    //     }
-
-    //     (carry_count, remains)
-    // }
-
     pub fn assign_advice_row(
         &self,
         mut layouter: impl Layouter<F>,

@@ -106,7 +106,7 @@ mod tests {
         ];
 
         let circuit = OverflowCheckCircuit { a };
-        let prover = MockProver::run(k, &circuit, vec![public_inputs.clone()]).unwrap();
+        let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
 
         // TODO: should check panic message
         let panic_result = panic::catch_unwind(|| prover.assert_satisfied());
