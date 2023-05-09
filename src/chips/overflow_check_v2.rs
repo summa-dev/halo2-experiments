@@ -9,7 +9,7 @@ use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 pub struct OverflowCheckV2Config<const MAX_BITS: u8, const ACC_COLS: usize> {
     pub value: Column<Advice>,
     pub decomposed_values: [Column<Advice>; ACC_COLS],
-    pub u8: Column<Fixed>,
+    pub range: Column<Fixed>,
     pub instance: Column<Instance>,
     pub selector: Selector,
 }
@@ -32,7 +32,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
         meta: &mut ConstraintSystem<F>,
         value: Column<Advice>,
         decomposed_values: [Column<Advice>; ACC_COLS],
-        u8: Column<Fixed>,
+        range: Column<Fixed>,
         instance: Column<Instance>,
         selector: Selector,
     ) -> OverflowCheckV2Config<MAX_BITS, ACC_COLS> {
@@ -58,20 +58,20 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
             vec![s_doc.clone() * (decomposed_value_sum - value)] // equality check between decomposed value and value
         });
 
-        meta.annotate_lookup_any_column(u8, || "LOOKUP_u8");
+        meta.annotate_lookup_any_column(range, || "LOOKUP_MAXBITS_RANGE");
 
         decomposed_values[0..ACC_COLS].iter().for_each(|column| {
             meta.lookup_any("range check for u8", |meta| {
-                let u8_cell = meta.query_advice(*column, Rotation::cur());
-                let u8_range = meta.query_fixed(u8, Rotation::cur());
-                vec![(u8_cell, u8_range)]
+                let cell = meta.query_advice(*column, Rotation::cur());
+                let range = meta.query_fixed(range, Rotation::cur());
+                vec![(cell, range)]
             });
         });
 
         OverflowCheckV2Config {
             value,
             decomposed_values,
-            u8,
+            range,
             instance,
             selector,
         }
@@ -114,15 +114,15 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
     }
 
     pub fn load(&self, layouter: &mut impl Layouter<F>) -> Result<(), Error> {
-        const RANGE: usize = 256;
+        let range = 1 << (MAX_BITS as usize);
 
         layouter.assign_region(
             || "load u8 range check table",
             |mut region| {
-                for i in 0..RANGE {
+                for i in 0..range {
                     region.assign_fixed(
                         || "assign cell in fixed column",
-                        self.config.u8,
+                        self.config.range,
                         i,
                         || Value::known(F::from(i as u64)),
                     )?;

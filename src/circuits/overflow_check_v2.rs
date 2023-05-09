@@ -65,7 +65,7 @@ mod tests {
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::bn256::Fr as Fp};
     #[test]
     fn test_none_overflow_case() {
-        let k = 9;
+        let k = 5;
 
         // a: new value
         let a = Value::known(Fp::from((1 << 16) - 2));
@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_overflow_case() {
-        let k = 9;
+        let k = 5;
 
         // a: new value
         let a = Value::known(Fp::from((1 << 16) - 2));
