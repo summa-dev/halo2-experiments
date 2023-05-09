@@ -24,6 +24,7 @@ impl<F: Field> Circuit<F> for OverflowCheckCircuitV2<F> {
         let col_c = meta.advice_column();
         let col_d = meta.advice_column();
         let col_e = meta.advice_column();
+        let u8 = meta.fixed_column();
         let selector = meta.selector();
         let instance = meta.instance_column();
 
@@ -31,6 +32,7 @@ impl<F: Field> Circuit<F> for OverflowCheckCircuitV2<F> {
             meta,
             col_a,
             [col_b, col_c, col_d, col_e],
+            u8,
             instance,
             selector,
         )
@@ -43,15 +45,11 @@ impl<F: Field> Circuit<F> for OverflowCheckCircuitV2<F> {
     ) -> Result<(), Error> {
         let chip = OverflowChipV2::construct(config);
 
+        chip.load(&mut layouter)?;
+
         // check overflow
-        chip.assign(
-            layouter.namespace(|| "checking overflow value a"),
-            self.a
-        )?;
-        chip.assign(
-            layouter.namespace(|| "checking overflow value b"),
-            self.b,
-        )?;
+        chip.assign(layouter.namespace(|| "checking overflow value a"), self.a)?;
+        chip.assign(layouter.namespace(|| "checking overflow value b"), self.b)?;
         chip.assign(
             layouter.namespace(|| "checking overflow value a + b"),
             self.a + self.b,
@@ -67,7 +65,7 @@ mod tests {
     use halo2_proofs::{circuit::Value, dev::MockProver, halo2curves::bn256::Fr as Fp};
     #[test]
     fn test_none_overflow_case() {
-        let k = 4;
+        let k = 9;
 
         // a: new value
         let a = Value::known(Fp::from((1 << 16) - 2));
@@ -80,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_overflow_case() {
-        let k = 4;
+        let k = 9;
 
         // a: new value
         let a = Value::known(Fp::from((1 << 16) - 2));

@@ -1,5 +1,5 @@
-use std::fmt::Debug;
 use eth_types::Field;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use super::utils::{decompose_bigInt_to_ubits, range_check_vec, value_f_to_big_uint};
@@ -9,6 +9,7 @@ use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 pub struct OverflowCheckV2Config<const MAX_BITS: u8, const ACC_COLS: usize> {
     pub value: Column<Advice>,
     pub decomposed_values: [Column<Advice>; ACC_COLS],
+    pub u8: Column<Fixed>,
     pub instance: Column<Instance>,
     pub selector: Selector,
 }
@@ -31,6 +32,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
         meta: &mut ConstraintSystem<F>,
         value: Column<Advice>,
         decomposed_values: [Column<Advice>; ACC_COLS],
+        u8: Column<Fixed>,
         instance: Column<Instance>,
         selector: Selector,
     ) -> OverflowCheckV2Config<MAX_BITS, ACC_COLS> {
@@ -42,7 +44,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
             let value = meta.query_advice(value, Rotation::cur());
 
             let decomposed_value_vec = (0..ACC_COLS)
-                .map(|i| meta.query_advice(decomposed_values[i], Rotation::cur()))
+                .map(|i: usize| meta.query_advice(decomposed_values[i], Rotation::cur()))
                 .collect::<Vec<_>>();
 
             let decomposed_value_sum =
@@ -53,16 +55,23 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
                         )))
                 });
 
-            [
-                vec![s_doc.clone() * (decomposed_value_sum - value)], // equality check between decomposed value and value
-                range_check_vec(&s_doc, decomposed_value_vec, 1 << MAX_BITS), // range check for each decomposed columns
-            ]
-            .concat()
+            vec![s_doc.clone() * (decomposed_value_sum - value)] // equality check between decomposed value and value
+        });
+
+        meta.annotate_lookup_any_column(u8, || "LOOKUP_u8");
+
+        decomposed_values[0..ACC_COLS].iter().for_each(|column| {
+            meta.lookup_any("range check for u8", |meta| {
+                let u8_cell = meta.query_advice(*column, Rotation::cur());
+                let u8_range = meta.query_fixed(u8, Rotation::cur());
+                vec![(u8_cell, u8_range)]
+            });
         });
 
         OverflowCheckV2Config {
             value,
             decomposed_values,
+            u8,
             instance,
             selector,
         }
@@ -99,6 +108,25 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
                     )?;
                 }
 
+                Ok(())
+            },
+        )
+    }
+
+    pub fn load(&self, layouter: &mut impl Layouter<F>) -> Result<(), Error> {
+        const RANGE: usize = 256;
+
+        layouter.assign_region(
+            || "load u8 range check table",
+            |mut region| {
+                for i in 0..RANGE {
+                    region.assign_fixed(
+                        || "assign cell in fixed column",
+                        self.config.u8,
+                        i,
+                        || Value::known(F::from(i as u64)),
+                    )?;
+                }
                 Ok(())
             },
         )
