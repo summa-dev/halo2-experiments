@@ -1,10 +1,13 @@
-use std::fmt::Debug;
-use num_bigint::BigUint;
 use arrayvec::ArrayVec;
 use eth_types::Field;
+use num_bigint::BigUint;
+use std::char::MAX;
+use std::fmt::Debug;
 
 use super::is_zero::{IsZeroChip, IsZeroConfig};
-use super::utils::{decompose_bigInt_to_ubits, f_to_big_uint, value_f_to_big_uint, range_check_vec};
+use super::utils::{
+    decompose_bigInt_to_ubits, f_to_big_uint, range_check, range_check_vec, value_f_to_big_uint,
+};
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
@@ -23,7 +26,9 @@ pub struct SafeACcumulatorChip<const MAX_BITS: u8, const ACC_COLS: usize, F: Fie
     config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS, F>,
 }
 
-impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MAX_BITS, ACC_COLS, F> {
+impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field>
+    SafeACcumulatorChip<MAX_BITS, ACC_COLS, F>
+{
     pub fn construct(config: SafeAccumulatorConfig<MAX_BITS, ACC_COLS, F>) -> Self {
         Self { config }
     }
@@ -50,6 +55,8 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MA
         // Enable equality on the advice and instance column to enable permutation check
         accumulate.map(|col| meta.enable_equality(col));
         add_carries.map(|col| meta.enable_equality(col));
+
+        meta.enable_equality(instance);
 
         meta.create_gate("accumulation constraint", |meta| {
             let s_add = meta.query_selector(add_carry_selector);
@@ -79,9 +86,9 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MA
             //                                                                                                                             ↓↓↓↓↓↓↓↓↓↓↓↓
             // | -             | new_value | left_most_inv | add_carries_2 | add_carries_1 | add_carries_0 | accumulate_2 | accumulate_1 | accumulate_0 | add_selector |
             // | --            | --        | --            | --            | --            | --            | --           | --           | -            | -            |
-            // | previous_acc  |           |               |               |               |               | 0            | 0xe          | → 0xd        | 0            | 
+            // | previous_acc  |           |               |               |               |               | 0            | 0xe          | → 0xd        | 0            |
             // | updated_acc   | → 0x5     | 0             | 0             | 0             | 1 ←           | 0            | 0xf          | 2   ←        | 1            |
-            // 
+            //
             // In this case, the result is that `0xd + 0x5 = 0x12`.
             // The first digit of the result, '0x12', is 0x1, which is assigned to the add_carries_0 column, and the rest of the result, 0x2, is placed in the accumulate_0 column.
             // In other words, the sum of the value between the rightmost value of the accumulate columns and the value of new_value is divided into the carry and the remainder.
@@ -90,36 +97,38 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MA
             //
             let check_add_value_exprs = vec![
                 s_add.clone()
-                    * ((value + previous_acc[ACC_COLS - 1].clone())
+                    * ((value.clone() + previous_acc[ACC_COLS - 1].clone())
                         - ((carries_acc[ACC_COLS - 1].clone() * shift_next_chunk.clone())
                             + updated_acc[ACC_COLS - 1].clone())),
             ];
+            let check_range_add_value = vec![s_add.clone() * range_check(value, 1 << MAX_BITS)];
 
             // Check with other accumulation columns with carries
-            // 
+            //
             // In same circuit configuration above, starting with left most of accumulate columns, `accumulate_2`.
             //                                                                                              ↓↓↓↓↓↓↓↓↓↓↓↓
             // | -             | new_value | left_most_inv | add_carries_2 | add_carries_1 | add_carries_0 | accumulate_2 | accumulate_1 | accumulate_0 | add_selector |
             // | --            | --        | --            | --            | --            | --            | --           | --           | -            | -            |
-            // | previous_acc  |           |               |               |               |               | 0 ←          | 0xe          | 0xd          | 0            | 
+            // | previous_acc  |           |               |               |               |               | 0 ←          | 0xe          | 0xd          | 0            |
             // | updated_acc   | 0x5       | 0             | → 0           | 0 ←           | 1             | → 0          | 0xf          | 1            | 1            |
-            //  
+            //
             // In here, the constraints easliy staisfy like this `(0x0 + 0x0) - (0x0 + (0 * (1 << 4))) = 0`.
             //
-            // In the next iteration, move the cursor to the next accumulate column, `accumulate_1`. 
+            // In the next iteration, move the cursor to the next accumulate column, `accumulate_1`.
             // add `add_accries_0` to previou accumulate number `0xe` then check equality with updated accumulate number `0xf` at `updated_acc` accumulate_1[1]
             //                                                                                                              ↓↓↓↓↓↓↓↓↓↓↓↓
             // | -             | new_value | left_most_inv | add_carries_2 | add_carries_1 | add_carries_0 | accumulate_2 | accumulate_1 | accumulate_0 | add_selector |
             // | --            | --        | --            | --            | --            | --            | --           | --           | -            | -            |
-            // | previous_acc  |           |               |               |               |               | 0            | 0xe ←        | 0xd          | 0            | 
+            // | previous_acc  |           |               |               |               |               | 0            | 0xe ←        | 0xd          | 0            |
             // | updated_acc   | 0x5       | 0             | 0             | → 0           | 1 ←           | 0            | → 0xf        | 1            | 1            |
-            // 
+            //
             // In here, the constraint satisfy that like this `(0xe + 0x1) - (0xf + (0 * (1 << 4))) = 0`
-            //  
+            //
             let check_accumulates_with_carries_expr = (0..ACC_COLS - 1)
                 .map(|i| {
                     s_add.clone()
-                        * ((updated_acc[i].clone() + (carries_acc[i].clone() * shift_next_chunk.clone()))
+                        * ((updated_acc[i].clone()
+                            + (carries_acc[i].clone() * shift_next_chunk.clone()))
                             - (previous_acc[i].clone() + carries_acc[i + 1].clone()))
                 })
                 .collect::<Vec<Expression<F>>>();
@@ -129,6 +138,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MA
 
             [
                 check_add_value_exprs,
+                check_range_add_value,
                 check_accumulates_with_carries_expr,
                 check_overflow_expr,
                 range_check_vec(&s_over, previous_acc, 1 << MAX_BITS),
@@ -154,13 +164,9 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MA
         offset: usize,
         update_value: Value<F>,
         accumulated_values: [Value<F>; ACC_COLS],
-    ) -> Result<(ArrayVec<AssignedCell<F, F>, ACC_COLS>, [Value<F>; ACC_COLS]), Error>  {
+    ) -> Result<(ArrayVec<AssignedCell<F, F>, ACC_COLS>, [Value<F>; ACC_COLS]), Error> {
         let mut sum = F::zero();
         update_value.as_ref().map(|f| sum = sum.add(f));
-        assert!(
-            sum <= F::from(1 << MAX_BITS),
-            "update value should less than or equal 2^{MAX_BITS}"
-        );
 
         let is_zero_chip = IsZeroChip::construct(self.config.is_zero.clone());
         layouter.assign_region(
@@ -212,9 +218,11 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> SafeACcumulatorChip<MA
                 }
 
                 // decomposed result is little-endian, so the vector is opposite to the order of the columns
-                let decomposed_sum_big_uint: Vec<F> = decompose_bigInt_to_ubits(&sum_big_uint, ACC_COLS, MAX_BITS as usize);
+                let decomposed_sum_big_uint: Vec<F> =
+                    decompose_bigInt_to_ubits(&sum_big_uint, ACC_COLS, MAX_BITS as usize);
 
-                let mut updated_accumulates: [Value<F>; ACC_COLS] = [Value::known(F::zero()); ACC_COLS];
+                let mut updated_accumulates: [Value<F>; ACC_COLS] =
+                    [Value::known(F::zero()); ACC_COLS];
                 let mut assigned_cells: ArrayVec<AssignedCell<F, F>, ACC_COLS> = ArrayVec::new();
                 let left_most_idx = ACC_COLS - 1;
                 for (i, v) in decomposed_sum_big_uint.iter().enumerate() {
