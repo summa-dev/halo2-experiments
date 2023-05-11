@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
-use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
 use eth_types::Field;
+use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
+use std::marker::PhantomData;
 
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
@@ -10,7 +10,7 @@ struct MyCircuit<F> {
     pub value_l: u64,
     pub value_r: u64,
     pub check: bool,
-    _marker: PhantomData<F>
+    _marker: PhantomData<F>,
 }
 #[derive(Clone, Debug)]
 struct TestCircuitConfig<F> {
@@ -50,26 +50,29 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
             lt,
         };
 
-        meta.create_gate("verifies that `check` current confif = is_lt from LtChip ", |meta| {
-            let q_enable = meta.query_selector(q_enable);
+        meta.create_gate(
+            "verifies that `check` current confif = is_lt from LtChip ",
+            |meta| {
+                let q_enable = meta.query_selector(q_enable);
 
-            // This verifies lt(value_l::cur, value_r::cur) is calculated correctly
-            let check = meta.query_advice(config.check, Rotation::cur());
+                // This verifies lt(value_l::cur, value_r::cur) is calculated correctly
+                let check = meta.query_advice(config.check, Rotation::cur());
 
-            vec![q_enable * (config.lt.is_lt(meta, None) - check)]
-        });
+                vec![q_enable * (config.lt.is_lt(meta, None) - check)]
+            },
+        );
 
         config
     }
-
 
     fn synthesize(
         &self,
         config: Self::Config,
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
-
         let chip = LtChip::construct(config.lt);
+
+        chip.load(&mut layouter)?;
 
         layouter.assign_region(
             || "witness",
@@ -114,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_less_than_2() {
-        let k = 5;
+        let k = 9;
 
         // initate usernames and balances array
         let value_l: u64 = 5;
@@ -140,13 +143,11 @@ mod tests {
         let prover = MockProver::run(k, &circuit, vec![]).unwrap();
         assert!(prover.verify().is_err());
 
-
         // let check to be false
         circuit.check = false;
 
         // Test 3 - should be valid
         let prover = MockProver::run(k, &circuit, vec![]).unwrap();
         prover.assert_satisfied();
-
     }
 }

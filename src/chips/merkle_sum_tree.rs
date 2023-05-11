@@ -1,15 +1,15 @@
 use super::poseidon::hash::{PoseidonChip, PoseidonConfig};
 use super::poseidon::spec::MySpec;
-use halo2_proofs::{circuit::*,plonk::*, poly::Rotation};
-use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
 use eth_types::Field;
+use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 const WIDTH: usize = 5;
 const RATE: usize = 4;
 const L: usize = 4;
 
 #[derive(Debug, Clone)]
-pub struct MerkleSumTreeConfig <F: Field> {
+pub struct MerkleSumTreeConfig<F: Field> {
     pub advice: [Column<Advice>; 5],
     pub bool_selector: Selector,
     pub swap_selector: Selector,
@@ -20,11 +20,11 @@ pub struct MerkleSumTreeConfig <F: Field> {
     pub lt_config: LtConfig<F, 8>,
 }
 #[derive(Debug, Clone)]
-pub struct MerkleSumTreeChip <F: Field>{
+pub struct MerkleSumTreeChip<F: Field> {
     config: MerkleSumTreeConfig<F>,
 }
 
-impl <F: Field> MerkleSumTreeChip<F> {
+impl<F: Field> MerkleSumTreeChip<F> {
     pub fn construct(config: MerkleSumTreeConfig<F>) -> Self {
         Self { config }
     }
@@ -52,7 +52,7 @@ impl <F: Field> MerkleSumTreeChip<F> {
         // enable equality for computed_sum copy constraint with instance column (col_e)
         meta.enable_equality(col_a);
         meta.enable_equality(col_b);
-        meta.enable_equality(col_c); 
+        meta.enable_equality(col_c);
         meta.enable_equality(col_d);
         meta.enable_equality(col_e);
         meta.enable_equality(instance);
@@ -80,9 +80,10 @@ impl <F: Field> MerkleSumTreeChip<F> {
             let r2 = meta.query_advice(col_d, Rotation::next());
 
             vec![
-                s.clone() * (e.clone() * Expression::Constant(F::from(2)) * (c.clone() - a.clone())
-                    - (l1 - a)
-                    - (c - r1)),
+                s.clone()
+                    * (e.clone() * Expression::Constant(F::from(2)) * (c.clone() - a.clone())
+                        - (l1 - a)
+                        - (c - r1)),
                 s * (e * Expression::Constant(F::from(2)) * (d.clone() - b.clone())
                     - (l2 - b)
                     - (d - r2)),
@@ -100,12 +101,10 @@ impl <F: Field> MerkleSumTreeChip<F> {
 
         let hash_inputs = (0..WIDTH).map(|_| meta.advice_column()).collect::<Vec<_>>();
 
-        let poseidon_config = PoseidonChip::<F, MySpec<F, WIDTH, RATE>, WIDTH, RATE, L>::configure(
-            meta,
-            hash_inputs
-        );
+        let poseidon_config =
+            PoseidonChip::<F, MySpec<F, WIDTH, RATE>, WIDTH, RATE, L>::configure(meta, hash_inputs);
 
-        // configure lt chip 
+        // configure lt chip
         let lt_config = LtChip::configure(
             meta,
             |meta| meta.query_selector(lt_selector),
@@ -121,19 +120,21 @@ impl <F: Field> MerkleSumTreeChip<F> {
             lt_selector,
             instance,
             poseidon_config,
-            lt_config
+            lt_config,
         };
 
-        meta.create_gate("verifies that `check` from current config equal to is_lt from LtChip ", |meta| {
-            let q_enable = meta.query_selector(lt_selector);
+        meta.create_gate(
+            "verifies that `check` from current config equal to is_lt from LtChip ",
+            |meta| {
+                let q_enable = meta.query_selector(lt_selector);
 
-            let check = meta.query_advice(col_c, Rotation::cur());
+                let check = meta.query_advice(col_c, Rotation::cur());
 
-            vec![q_enable * (config.lt_config.is_lt(meta, None) - check)]
-        });
+                vec![q_enable * (config.lt_config.is_lt(meta, None) - check)]
+            },
+        );
 
         config
-
     }
 
     pub fn assing_leaf_hash_and_balance(
@@ -145,14 +146,24 @@ impl <F: Field> MerkleSumTreeChip<F> {
         let leaf_hash_cell = layouter.assign_region(
             || "assign leaf hash",
             |mut region| {
-                region.assign_advice(|| "leaf hash", self.config.advice[0], 0, || Value::known(leaf_hash))
+                region.assign_advice(
+                    || "leaf hash",
+                    self.config.advice[0],
+                    0,
+                    || Value::known(leaf_hash),
+                )
             },
         )?;
 
         let leaf_balance_cell = layouter.assign_region(
             || "assign leaf balance",
             |mut region| {
-                region.assign_advice(|| "leaf balance", self.config.advice[1], 0, || Value::known(leaf_balance))
+                region.assign_advice(
+                    || "leaf balance",
+                    self.config.advice[1],
+                    0,
+                    || Value::known(leaf_balance),
+                )
             },
         )?;
 
@@ -172,7 +183,7 @@ impl <F: Field> MerkleSumTreeChip<F> {
             .assign_region(
                 || "merkle prove layer",
                 |mut region| {
-                    // Row 0 
+                    // Row 0
                     self.config.bool_selector.enable(&mut region, 0)?;
                     self.config.swap_selector.enable(&mut region, 0)?;
                     let l1 = prev_hash.copy_advice(
@@ -199,18 +210,17 @@ impl <F: Field> MerkleSumTreeChip<F> {
                         0,
                         || Value::known(element_balance),
                     )?;
-                    let index = region.assign_advice(|| 
-                        "assign index", 
-                    self.config.advice[4], 
-                    0, 
-                    || Value::known(index)
+                    let index = region.assign_advice(
+                        || "assign index",
+                        self.config.advice[4],
+                        0,
+                        || Value::known(index),
                     )?;
 
                     let mut l1_val = l1.value().map(|x| x.to_owned());
                     let mut l2_val = l2.value().map(|x| x.to_owned());
                     let mut r1_val = r1.value().map(|x| x.to_owned());
                     let mut r2_val = r2.value().map(|x| x.to_owned());
-                
 
                     self.config.sum_selector.enable(&mut region, 1)?;
 
@@ -252,7 +262,10 @@ impl <F: Field> MerkleSumTreeChip<F> {
                         || r2_val,
                     )?;
 
-                    let computed_sum = left_balance.value().zip(right_balance.value()).map(|(a, b)| *a + b);
+                    let computed_sum = left_balance
+                        .value()
+                        .zip(right_balance.value())
+                        .map(|(a, b)| *a + b);
 
                     // Now we can assign the sum result to the computed_sum cell.
                     let computed_sum_cell = region.assign_advice(
@@ -297,14 +310,13 @@ impl <F: Field> MerkleSumTreeChip<F> {
         computed_sum: F,
         total_assets: F,
     ) -> Result<(), Error> {
-
         // Initiate chip config
         let chip = LtChip::construct(self.config.lt_config);
+        chip.load(&mut layouter)?;
 
         layouter.assign_region(
             || "enforce sum to be less than total assets",
             |mut region| {
-
                 // copy the computed sum to the cell in the first column
                 prev_computed_sum_cell.copy_advice(
                     || "copy computed sum",
@@ -318,8 +330,8 @@ impl <F: Field> MerkleSumTreeChip<F> {
                     || "copy total assets",
                     self.config.instance,
                     3,
-                    self.config.advice[1], 
-                    0
+                    self.config.advice[1],
+                    0,
                 )?;
 
                 // set check to be equal to 1
@@ -330,7 +342,7 @@ impl <F: Field> MerkleSumTreeChip<F> {
                     || Value::known(F::from(1)),
                 )?;
 
-                // enable lt seletor 
+                // enable lt seletor
                 self.config.lt_selector.enable(&mut region, 0)?;
 
                 chip.assign(&mut region, 0, computed_sum, total_assets)?;

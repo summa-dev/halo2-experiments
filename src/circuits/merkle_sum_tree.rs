@@ -1,21 +1,20 @@
 use super::super::chips::merkle_sum_tree::{MerkleSumTreeChip, MerkleSumTreeConfig};
+use eth_types::Field;
 use halo2_proofs::{circuit::*, plonk::*};
 use std::marker::PhantomData;
-use eth_types::Field;
 
 #[derive(Default)]
-struct MerkleSumTreeCircuit <F: Field> {
+struct MerkleSumTreeCircuit<F: Field> {
     pub leaf_hash: F,
     pub leaf_balance: F,
     pub path_element_hashes: Vec<F>,
     pub path_element_balances: Vec<F>,
     pub path_indices: Vec<F>,
     pub assets_sum: F,
-    _marker: PhantomData<F>
+    _marker: PhantomData<F>,
 }
 
-impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
-
+impl<F: Field> Circuit<F> for MerkleSumTreeCircuit<F> {
     type Config = MerkleSumTreeConfig<F>;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -24,7 +23,6 @@ impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
     }
 
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-
         // config columns for the merkle tree chip
         let col_a = meta.advice_column();
         let col_b = meta.advice_column();
@@ -34,11 +32,7 @@ impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
 
         let instance = meta.instance_column();
 
-        MerkleSumTreeChip::configure(
-            meta,
-            [col_a, col_b, col_c, col_d, col_e],
-            instance,
-        )
+        MerkleSumTreeChip::configure(meta, [col_a, col_b, col_c, col_d, col_e], instance)
     }
 
     fn synthesize(
@@ -46,12 +40,19 @@ impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
         config: Self::Config,
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
-
         let chip = MerkleSumTreeChip::construct(config);
-        let (leaf_hash, leaf_balance) = chip.assing_leaf_hash_and_balance(layouter.namespace(|| "assign leaf"), F::from(self.leaf_hash), F::from(self.leaf_balance))?;
+        let (leaf_hash, leaf_balance) = chip.assing_leaf_hash_and_balance(
+            layouter.namespace(|| "assign leaf"),
+            F::from(self.leaf_hash),
+            F::from(self.leaf_balance),
+        )?;
 
         chip.expose_public(layouter.namespace(|| "public leaf hash"), &leaf_hash, 0)?;
-        chip.expose_public(layouter.namespace(|| "public leaf balance"), &leaf_balance, 1)?;
+        chip.expose_public(
+            layouter.namespace(|| "public leaf balance"),
+            &leaf_balance,
+            1,
+        )?;
 
         // apply it for level 0 of the merkle tree
         // node cells passed as inputs are the leaf_hash cell and the leaf_balance cell
@@ -78,10 +79,19 @@ impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
         }
 
         // compute the sum of the merkle sum tree as sum of the leaf balance and the sum of the path elements balances
-        let computed_sum = self.leaf_balance + self.path_element_balances.iter().fold(F::zero(), |acc, x| acc + x);
+        let computed_sum = self.leaf_balance
+            + self
+                .path_element_balances
+                .iter()
+                .fold(F::zero(), |acc, x| acc + x);
 
-        // enforce computed sum to be less than the assets sum 
-        chip.enforce_less_than(layouter.namespace(|| "enforce less than"), &next_sum, computed_sum, self.assets_sum)?;
+        // enforce computed sum to be less than the assets sum
+        chip.enforce_less_than(
+            layouter.namespace(|| "enforce less than"),
+            &next_sum,
+            computed_sum,
+            self.assets_sum,
+        )?;
 
         chip.expose_public(layouter.namespace(|| "public root"), &next_hash, 2)?;
         Ok(())
@@ -92,15 +102,12 @@ impl <F:Field> Circuit<F> for MerkleSumTreeCircuit<F> {
 mod tests {
     use crate::circuits::utils::full_prover;
 
-    use super::MerkleSumTreeCircuit;
     use super::super::super::chips::poseidon::spec::MySpec;
+    use super::MerkleSumTreeCircuit;
     use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength};
-    use halo2_proofs::{
-        dev::MockProver, 
-        halo2curves::bn256::{Fr as Fp},
-    };
+    use halo2_proofs::{dev::MockProver, halo2curves::bn256::Fr as Fp};
     use std::marker::PhantomData;
-    
+
     const WIDTH: usize = 5;
     const RATE: usize = 4;
     const L: usize = 4;
@@ -111,18 +118,30 @@ mod tests {
         pub balance: Fp,
     }
 
-    fn compute_merkle_sum_root(node: &Node,  elements: &Vec<Node>, indices: &Vec<Fp>) -> Node {
+    fn compute_merkle_sum_root(node: &Node, elements: &Vec<Node>, indices: &Vec<Fp>) -> Node {
         let k = elements.len();
         let mut digest = node.clone();
         let mut message: [Fp; 4];
         for i in 0..k {
             if indices[i] == 0.into() {
-                message = [digest.hash, digest.balance, elements[i].hash, elements[i].balance];
+                message = [
+                    digest.hash,
+                    digest.balance,
+                    elements[i].hash,
+                    elements[i].balance,
+                ];
             } else {
-                message = [elements[i].hash, elements[i].balance, digest.hash, digest.balance];
+                message = [
+                    elements[i].hash,
+                    elements[i].balance,
+                    digest.hash,
+                    digest.balance,
+                ];
             }
 
-            digest.hash = poseidon::Hash::<_, MySpec<Fp, WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init()
+            digest.hash =
+                poseidon::Hash::<_, MySpec<Fp, WIDTH, RATE>, ConstantLength<L>, WIDTH, RATE>::init(
+                )
                 .hash(message);
 
             digest.balance = digest.balance + elements[i].balance;
@@ -130,8 +149,12 @@ mod tests {
         digest
     }
 
-    fn instantiate_circuit(leaf: Node, elements: Vec<Node>, indices: Vec<Fp>, assets_sum: Fp) -> MerkleSumTreeCircuit<Fp>{
-
+    fn instantiate_circuit(
+        leaf: Node,
+        elements: Vec<Node>,
+        indices: Vec<Fp>,
+        assets_sum: Fp,
+    ) -> MerkleSumTreeCircuit<Fp> {
         let element_hashes: Vec<Fp> = elements.iter().map(|node| node.hash).collect();
         let element_balances: Vec<Fp> = elements.iter().map(|node| node.balance).collect();
 
@@ -144,11 +167,9 @@ mod tests {
             assets_sum,
             _marker: PhantomData,
         }
-
     }
 
     fn build_merkle_tree() -> (Node, Vec<Node>, Vec<Fp>, Node) {
-
         let leaf = Node {
             hash: Fp::from(10u64),
             balance: Fp::from(100u64),
@@ -177,7 +198,13 @@ mod tests {
             },
         ];
 
-        let indices = vec![Fp::from(0u64), Fp::from(0u64), Fp::from(0u64), Fp::from(0u64), Fp::from(0u64)];
+        let indices = vec![
+            Fp::from(0u64),
+            Fp::from(0u64),
+            Fp::from(0u64),
+            Fp::from(0u64),
+            Fp::from(0u64),
+        ];
 
         let root = compute_merkle_sum_root(&leaf, &elements, &indices);
 
@@ -186,7 +213,6 @@ mod tests {
 
     #[test]
     fn test_valid_merkle_sum_tree() {
-
         let (leaf, elements, indices, root) = build_merkle_tree();
 
         let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
@@ -202,7 +228,6 @@ mod tests {
 
     #[test]
     fn test_invalid_root_hash() {
-
         let (leaf, elements, indices, root) = build_merkle_tree();
 
         let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
@@ -220,7 +245,6 @@ mod tests {
 
     #[test]
     fn test_invalid_leaf_hash() {
-
         let (leaf, elements, indices, root) = build_merkle_tree();
 
         let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
@@ -234,12 +258,10 @@ mod tests {
         // error => Equality constraint not satisfied by cell (Column('Advice', 0 - ), in Region 2 ('merkle prove layer') at offset 0). Equality constraint not satisfied by cell (Column('Instance', 0 - ), outside any region, on row 0)
         // leaf_hash (advice column[0]) != leaf.hash (instance column row 0)
         assert!(invalid_prover.verify().is_err());
-
     }
 
     #[test]
     fn test_invalid_leaf_balance() {
-
         let (leaf, elements, indices, root) = build_merkle_tree();
 
         let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
@@ -257,7 +279,6 @@ mod tests {
 
     #[test]
     fn test_non_binary_index() {
-
         let (leaf, elements, mut indices, root) = build_merkle_tree();
 
         let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
@@ -277,7 +298,6 @@ mod tests {
 
     #[test]
     fn test_swapping_index() {
-
         let (leaf, elements, mut indices, root) = build_merkle_tree();
 
         let assets_sum = Fp::from(500u64); // greater than liabilities sum (400)
@@ -297,7 +317,6 @@ mod tests {
 
     #[test]
     fn test_is_not_less_than() {
-
         let (leaf, elements, indices, root) = build_merkle_tree();
 
         let assets_sum = Fp::from(200u64); // less than liabilities sum (400)
@@ -325,8 +344,7 @@ mod tests {
 
     #[test]
     fn test_full_prover() {
-
-        let k = 8;
+        let k = 9;
 
         let (leaf, elements, indices, root) = build_merkle_tree();
 
@@ -336,12 +354,7 @@ mod tests {
 
         let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
-        full_prover(
-            circuit, 
-            k, 
-            &public_input
-        );
-
+        full_prover(circuit, k, &public_input);
     }
 
     #[cfg(feature = "dev-graph")]
@@ -357,8 +370,8 @@ mod tests {
 
         let circuit = instantiate_circuit(leaf, elements, indices, assets_sum);
 
-        let root =
-            BitMapBackend::new("prints/merkle-sum-tree-layout.png", (1024, 3096)).into_drawing_area();
+        let root = BitMapBackend::new("prints/merkle-sum-tree-layout.png", (1024, 3096))
+            .into_drawing_area();
         root.fill(&WHITE).unwrap();
         let root = root
             .titled("Merkle Sum Tree Layout", ("sans-serif", 60))
@@ -369,5 +382,3 @@ mod tests {
             .unwrap();
     }
 }
-
-

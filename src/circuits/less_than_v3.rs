@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
-use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
-use eth_types::{Field};
 use super::super::chips::hash_v1::{Hash1Chip, Hash1Config};
+use eth_types::Field;
+use gadgets::less_than::{LtChip, LtConfig, LtInstruction};
+use std::marker::PhantomData;
 
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
@@ -11,7 +11,7 @@ struct MyCircuit<F> {
     pub value_l: u64,
     pub value_r: u64,
     pub check: bool,
-    _marker: PhantomData<F>
+    _marker: PhantomData<F>,
 }
 
 #[derive(Clone, Debug)]
@@ -48,38 +48,39 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
 
         let hash_config = Hash1Chip::configure(meta, [value_l, value_r], instance);
 
-
         let config = Self::Config {
             q_enable,
             value_l,
             value_r,
             check,
             lt,
-            hash_config
+            hash_config,
         };
 
-        meta.create_gate("verifies that `check` current confif = is_lt from LtChip ", |meta| {
-            let q_enable = meta.query_selector(q_enable);
+        meta.create_gate(
+            "verifies that `check` current confif = is_lt from LtChip ",
+            |meta| {
+                let q_enable = meta.query_selector(q_enable);
 
-            // This verifies lt(value_l::cur, value_r::cur) is calculated correctly
-            let check = meta.query_advice(config.check, Rotation::cur());
+                // This verifies lt(value_l::cur, value_r::cur) is calculated correctly
+                let check = meta.query_advice(config.check, Rotation::cur());
 
-            // verifies that check is equal to lt in the child chip
-            vec![q_enable * (config.lt.is_lt(meta, None) - check)]
-        });
+                // verifies that check is equal to lt in the child chip
+                vec![q_enable * (config.lt.is_lt(meta, None) - check)]
+            },
+        );
 
         config
     }
-
 
     fn synthesize(
         &self,
         config: Self::Config,
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
-
         let lt_chip = LtChip::construct(config.lt);
-        let hash_chip : Hash1Chip<F> = Hash1Chip::construct(config.hash_config);
+        lt_chip.load(&mut layouter)?;
+        let hash_chip: Hash1Chip<F> = Hash1Chip::construct(config.hash_config);
 
         let _ = layouter.assign_region(
             || "witness",
@@ -98,12 +99,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
                     || Value::known(F::from(self.value_r)),
                 )?;
 
-                region.assign_advice(
-                    || "check",
-                    config.check,
-                    0,
-                    || Value::known(F::from(1)),
-                )?;
+                region.assign_advice(|| "check", config.check, 0, || Value::known(F::from(1)))?;
 
                 config.q_enable.enable(&mut region, 0)?;
 
@@ -113,11 +109,13 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
             },
         );
 
-        let b = hash_chip.assign_advice_row(layouter.namespace(|| "load row"), Value::known(F::from(self.value_l)))?;
+        let b = hash_chip.assign_advice_row(
+            layouter.namespace(|| "load row"),
+            Value::known(F::from(self.value_l)),
+        )?;
         hash_chip.expose_public(layouter.namespace(|| "hash output check"), &b, 0)?;
 
         Ok(())
-
     }
 }
 
@@ -130,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_less_than_3() {
-        let k = 5;
+        let k = 9;
 
         // initate usernames and balances array
         let value_l: u64 = 5;
@@ -164,6 +162,5 @@ mod tests {
         // Test 3 - should be invalid! as we are now forcing the check to be true
         let prover = MockProver::run(k, &circuit, vec![public_input_1]).unwrap();
         assert!(prover.verify().is_err());
-
     }
 }
