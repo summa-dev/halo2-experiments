@@ -2,7 +2,7 @@ use eth_types::Field;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use super::utils::{decompose_bigInt_to_ubits, range_check_vec, value_f_to_big_uint};
+use super::utils::{decompose_bigInt_to_ubits, value_f_to_big_uint};
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
@@ -38,7 +38,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
     ) -> OverflowCheckV2Config<MAX_BITS, ACC_COLS> {
         decomposed_values.map(|col| meta.enable_equality(col));
 
-        meta.create_gate("range check decomposed values", |meta| {
+        meta.create_gate("equality check between decomposed value and value", |meta| {
             let s_doc = meta.query_selector(selector);
 
             let value = meta.query_advice(value, Rotation::cur());
@@ -55,13 +55,13 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
                         )))
                 });
 
-            vec![s_doc.clone() * (decomposed_value_sum - value)] // equality check between decomposed value and value
+            vec![s_doc.clone() * (decomposed_value_sum - value)]
         });
 
         meta.annotate_lookup_any_column(range, || "LOOKUP_MAXBITS_RANGE");
 
         decomposed_values[0..ACC_COLS].iter().for_each(|column| {
-            meta.lookup_any("range check for u8", |meta| {
+            meta.lookup_any("range check for MAXBITS", |meta| {
                 let cell = meta.query_advice(*column, Rotation::cur());
                 let range = meta.query_fixed(range, Rotation::cur());
                 vec![(cell, range)]
@@ -117,7 +117,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field> OverflowChipV2<MAX_BIT
         let range = 1 << (MAX_BITS as usize);
 
         layouter.assign_region(
-            || "load u8 range check table",
+            || format!("load range check table of {} bits", MAX_BITS),
             |mut region| {
                 for i in 0..range {
                     region.assign_fixed(
