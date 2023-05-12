@@ -35,6 +35,7 @@ impl<F: Field> Circuit<F> for SafeAccumulatorCircuit<F> {
         ];
         let add_selector = meta.selector();
         let overflow_selector = meta.selector();
+        let boolean_selector = meta.selector();
         let instance = meta.instance_column();
 
         SafeACcumulatorChip::<4, 4, F>::configure(
@@ -43,7 +44,7 @@ impl<F: Field> Circuit<F> for SafeAccumulatorCircuit<F> {
             left_most_acc_inv,
             carry_cols,
             acc_cols,
-            [add_selector, overflow_selector],
+            [boolean_selector, add_selector, overflow_selector],
             instance,
         )
     }

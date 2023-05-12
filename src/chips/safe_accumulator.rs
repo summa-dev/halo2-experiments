@@ -39,11 +39,12 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field>
         left_most_inv: Column<Advice>,
         add_carries: [Column<Advice>; ACC_COLS],
         accumulate: [Column<Advice>; ACC_COLS],
-        selector: [Selector; 2],
+        selector: [Selector; 3],
         instance: Column<Instance>,
     ) -> SafeAccumulatorConfig<MAX_BITS, ACC_COLS, F> {
-        let add_carry_selector = selector[0];
-        let overflow_check_selector = selector[1];
+        let bool_selector = selector[0];
+        let add_carry_selector = selector[1];
+        let overflow_check_selector = selector[2];
 
         let is_zero = IsZeroChip::configure(
             meta,
@@ -57,6 +58,19 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field>
         add_carries.map(|col| meta.enable_equality(col));
 
         meta.enable_equality(instance);
+
+        meta.create_gate("bool constraint", |meta| {
+            let mut exprs: Vec<Expression<F>> = vec![];
+
+            let s = meta.query_selector(bool_selector);
+
+            for carries in add_carries {
+                let a = meta.query_advice(carries, Rotation::cur());
+                exprs.push(s.clone() * a.clone() * (Expression::Constant(F::from(1)) - a));
+            }
+
+            exprs
+        });
 
         meta.create_gate("accumulation constraint", |meta| {
             let s_add = meta.query_selector(add_carry_selector);
