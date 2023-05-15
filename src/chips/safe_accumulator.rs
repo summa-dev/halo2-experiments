@@ -242,8 +242,7 @@ impl<const MAX_BITS: u8, const ACC_COLS: usize, F: Field>
                 for (i, v) in decomposed_sum_big_uint.iter().enumerate() {
                     // a value in left most columns is overflow
                     if i == left_most_idx {
-                        let _is_overflow =
-                            is_zero_chip.assign(&mut region, 1, Value::known(v.clone()));
+                        is_zero_chip.assign(&mut region, 1, Value::known(v.clone()))?;
                     }
                     let cell = region.assign_advice(
                         || format!("assign updated value to accumulated[{}]", i),
