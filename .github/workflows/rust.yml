@@ -21,5 +21,5 @@ jobs:
     - name: Format
       run: cargo fmt
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose -- --nocapture
   

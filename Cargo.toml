@@ -15,3 +15,5 @@ eth-types = { git = "https://github.com/privacy-scaling-explorations/zkevm-circu
 num-bigint = "0.4.3"
 hex = "0.4.3"
 arrayvec = "0.7.2"
+gadgets = { git = "https://github.com/privacy-scaling-explorations/zkevm-circuits", rev= "37b8aca"}
+rand = "0.8"
