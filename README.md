@@ -18,6 +18,11 @@ List of available experiments:
 - [Experiment 10 - LessThan Chip V2](#experiment-10---lessthan-chip-v2)
 - [Experiment 11 - LessThan Chip V3](#experiment-11---lessthan-chip-v3)
 - [Experiment 12 - Merkle Sum Tree](#experiment-12---merkle-sum-tree)
+- [Experiment 13 - Add Carry v1](#experiment-13---add-carry-v1)
+- [Experiment 14 - Add Carry v2](#experiment-14---add-carry-v2)
+- [Experiment 15 - Overflow Check](#experiment-15---overflow-check)
+- [Experiment 16 - Overflow Check v2](#experiment-16---overflow-check-v2)
+- [Experiment 17 - Safe Accumulator](#experiment-17---safe-accumulator)
 
 # Run
 
@@ -366,7 +371,145 @@ TO DO:
 
 
 
+# Experiment 13 - Add carry v1
+
+Allowing the addition of new values to previously accumulated amounts into two columns, acc_hi and acc_lo.
+
+Circuit looks like this,
+
+| - | value  | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
+| - | ----      | ---      |   ---      | --|
+| 0 | - | 0 |  0 | 0x1 |
+| 1 | 0xffff | 0 |  0xffff | 0 |
+| 2 | 0x1 | 0x1 | 0 | - |
+| 3 | - | - | - | - |
+
+### Configuration 
+
+the first rows's values assigned with zero. And `assign_advice_row` function needs values for addition, these will be copied cell from the region. and then permutation check like below. 
+
+```Rust
+// following above table
+0 == (value + (acc_hi[1] * (1 << 16)) + acc_lo[1]) 
+    - ((acc_hi[2] * (1 << 16)) + acc_lo[2] )
+
+```
+
+`cargo test --package halo2-experiments --lib -- circuits::add_carry_v1`
+
+TO DO: -> moved to next version.
+
+~~- [ ] Range check for left most column of multi-columns for accumulation~~<br>
+~~- [ ] Support 2^256 in Accumulated value with multi-columns~~
+
+# Experiment 14 - Add carry v2
+
+Allowing the addition of new values to previously accumulated amounts into two columns, acc_hi and acc_lo.
+
+Circuit looks like this
+
+| - | value | acc_hi_inv | acc_hi(x * 2^16)  | acc_lo(x * 2^0) | instance  |
+| - | ----  | ---   | ---      |   ---      | --|
+| 0 | - | - |  0 |  0xfffe | 0x1 |
+| 1 | 0x1 | * |  0 | 0xffff | 0xfffe |
+| 2 | - | - | - | - | 0x0 |
+| 3 | - | - | - | - | 0x1 |
+
+### Configuration 
+
+As similar like v1, used simple configuration. but added one more constraint with one more advice column for inverted number. this constraint polynomial followed `is_zero` gadget from `zkevm-circuit`.
+the addition constraint like below.
+
+```Rust
+// following above table
+0 == acc_hi[1] * (1 - acc_hi[1] * acc_hi_inv[1]) 
+
+```
+
+# Experiment 15 - Overflow Check
+
+This chip implemented an overflow checking for columns of the accumulation amount of assets.
+There is an extra column for accumulating value. the column be used for inverting a number in the overflow column.
+
+There are two selectors in this chip.
+- 'add_carry_selector': toggle sum of new value in 'a' column and accumulated value.
+- 'overflow_check_selector': toggle check to see if the sum in the 'sum_overflow' column equals zero.
+
+for checking if a number is zero in the 'sum_overflow' column, activate 'is_zero' chip.<br>
+The code for the 'is_zero' chip was taken from the "halo2-example" repository.
+
+There are two tests for 'overflow circuit'.
+
+- None overflow case
+    | - | value | sum_overflow_inv | sum_overflow | sum_hi(x * 2^16)  | sum_lo(x * 2^0) | instance  |
+    | - | - | - | - | - | - | - |
+    | 0 | - | - | - |  0 |  0xfffe | 0 |
+    | 1 | 0x1_0003 | * | * |  0x2 | 0x1 | 0xfffe |
+    | 2 | - | - | - | - | - | 0x2 |
+    | 3 | - | - | - | - | - | 0x1 |
+
+At row 1, We can calculated 'acc_hi' has 0x20000 value. and 'sum_lo' is 0x1 value. it is matched a sum of 0x1_0003 in 'value' column at row 1 and 0xfffe in 'sum_lo' at row 0.
+we may strict a number more than or equal '2^16' in 'value' column. In here, we used more than '2^16' for testing.
+
+- Overflow case
+    | - | value | sum_overflow_inv | sum_overflow | sum_hi(x * 2^16)  | sum_lo(x * 2^0) | instance  |
+    | - | - | - | - | - | - | - |
+    | 0 | - | - | - |  0 |  0xfffe | 0 |
+    | 1 | 0x1_0000_0002 | * | 0x1 |  0x1 | 0x1 | 0xffff |
+    | 2 | - | - | - | - | - | 0x1 |
+    | 3 | - | - | - | - | - | 0x1 |
+    | 4 | - | - | - | - | - | 0x1 |
+
+In this case, addition value is more than 2^32. so, the circuit got panic with this input due to 'is_zero' chip.
+
+# Experiment 16 - Overflow Check V2
+
+The `overflow_check_v2` chip is designed to provide a more robust mechanism for checking overflow conditions in computations.
+
+The `overflow_check_v2` chip accomplishes this by decomposing the values in cells, which allows it to handle larger numbers. In other words, instead of storing a large number in a single cell, it breaks down the number into smaller parts and stores each part in a separate cell. This method enables the circuit to handle much larger numbers than would be possible with a single cell.
+
+The primary purpose of this chip is to verify the equality between the original value and its decomposed counterpart. By doing this, the chip can ensure that the decomposed values correctly represent the original value and that no overflow has occurred during computations.
+
+However, while the chip can handle larger numbers by decomposing them into smaller parts, it's important to note that it can't handle values that are larger than the prime number of the finite field. This is a fundamental limit of the chip and the underlying circuit.
+
+For better understanding, let's consider a scenario where we check for overflow in three steps, 'a', 'b', and 'a + b', at the circuit level. Assume that the prime number of the finite field is 255, 'a' is 42, and 'b' is 221. It's easy to see that both 'a' and 'b' are valid and don't overflow. However, 'a + b' equals 262, which is over the prime number. Thus, the chip will only return the result as 7 (262 mod 255), not 262, because it's over the modulus.
 
 
+The key feature is in [here](https://github.com/summa-dev/halo2-experiments/blob/7c4f08a50be277c8b49b3d81eebc3cd314c5e1c7/src/circuits/overflow_check_v2.rs#L50-L56) `overflow_check_v2` circuit 
 
+```Rust
+// check overflow
+        chip.assign(layouter.namespace(|| "checking overflow value a"), self.a)?;
+        chip.assign(layouter.namespace(|| "checking overflow value b"), self.b)?;
+        chip.assign(layouter.namespace(|| "checking overflow value a + b"), self.a + self.b,)?;
+```
 
+Note that those 'a' and 'b' are `bigInt` type. So, we do not worry about overflowing when add it before using the input variable to `assign` method. 
+
+# Experiment 17 - Safe Accumulator
+
+The safe_accumulator is a chip designed to accumulate values within a circuit and effectively manage the risk of overflow. Its main purpose is to maintain an accumulated total of values that could potentially be larger than the modulus of the finite field in the circuit.
+
+It achieves this by breaking down the total value into smaller parts and storing each part in a separate cell. This allows the chip to effectively handle much larger numbers than would be possible with a single cell.
+
+Now, let's dive into the structure of the safe_accumulator config in more detail.
+
+```Rust
+pub struct SafeAccumulatorConfig<const MAX_BITS: u8, const ACC_COLS: usize> {
+    pub update_value: Column<Advice>,
+    pub left_most_inv: Column<Advice>,
+    pub add_carries: [Column<Advice>; ACC_COLS],
+    pub accumulate: [Column<Advice>; ACC_COLS],
+    pub instance: Column<Instance>,
+    pub is_zero: IsZeroConfig,
+    pub selector: [Selector; 2],
+}
+```
+
+The chip incorporates a mechanism to check for overflow, utilizing the leftmost accumulate column for this purpose. Consequently, you need to configure one additional column beyond the maximum accumulation value. For instance, if you're checking values beyond 64 bits (8 bytes), you should configure 9 columns in the circuit, with MAX_BITS set to 8. Alternatively, you can set MAX_BITS to 16 and use 5 columns, given that 16 * 4 equals 64 bits. To prevent malicious computations on the leftmost accumulate column, constraints for other accumulate columns are put in place, similar to the mechanism used in the add_carry_v1 chip.
+
+The chip has constraints that the accumulated values fall within a predefined range. It also ensures that the carry values are binary. These features work together to prevent overflow and maintain the integrity of the accumulated total.
+
+A unique advantage of the safe_accumulator over some other chips (like `add_carry_v1`) is that it can handle numbers larger than the modular limit of the finite fields in the circuit. This makes it particularly useful in scenarios where we need to deal with large numbers that might exceed the field modulus.
+
+However, this chip is experimental and has limitations. The values added to the accumulator are limited by `MAX_BITS` and might need decomposition for handling larger values.

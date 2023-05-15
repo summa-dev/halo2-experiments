@@ -11,3 +11,8 @@ pub mod utils;
 pub mod less_than;
 pub mod less_than_v2;
 pub mod less_than_v3;
+pub mod add_carry_v1;
+pub mod add_carry_v2;
+pub mod overflow_check;
+pub mod overflow_check_v2;
+pub mod safe_accumulator;
