@@ -17,5 +17,6 @@ hex = "0.4.3"
 arrayvec = "0.7.2"
 gadgets = { git = "https://github.com/privacy-scaling-explorations/zkevm-circuits", rev= "37b8aca"}
 rand = "0.8"
-snark-verifier = { git = "https://github.com/privacy-scaling-explorations/snark-verifier"}
+snark-verifier-sdk = { git = "https://github.com/privacy-scaling-explorations/snark-verifier"}
 itertools = "0.10.3"
+ark-std = "0.4.0"
