@@ -11,11 +11,11 @@ struct Hash2Circuit<Fp> {
 
 impl CircuitExt<Fp> for Hash2Circuit<Fp> {
     fn num_instance(&self) -> Vec<usize> {
-        vec![2]
+        vec![1]
     }
 
     fn instances(&self) -> Vec<Vec<Fp>> {
-        vec![vec![self.a, self.b]]
+        vec![vec![self.a + self.b]]
     }
 }
 
@@ -46,8 +46,6 @@ impl Circuit<Fp> for Hash2Circuit<Fp> {
         let b = chip.load_private(layouter.namespace(|| "load b"), Value::known(self.b))?;
         let c = chip.hash(layouter.namespace(|| "load row"), a, b.clone())?;
         chip.expose_public(layouter.namespace(|| "hash output check"), &c, 0)?;
-        chip.expose_public(layouter.namespace(|| "b check"), &b, 1)?;
-        // chip.expose_public(layouter.namespace(|| "a check"), &a, 2)?;
         Ok(())
     }
 }
@@ -80,15 +78,19 @@ mod tests {
         let a = Fp::from(2);
         let b = Fp::from(7);
 
-        let circuit = Hash2Circuit::default();
+        // let circuit = Hash2Circuit::default();
 
-        // let circuit_b = Hash2Circuit { a, b };
+        let circuit_b = Hash2Circuit { a, b };
 
-        let vk = keygen_vk(params, &circuit).unwrap();
-        let pk = keygen_pk(params, vk, &circuit).unwrap();
+        let prover = MockProver::run(4, &circuit_b, circuit_b.instances()).unwrap();
+
+        assert_eq!(prover.verify(), Ok(()));
+
+        let vk = keygen_vk(params, &circuit_b).unwrap();
+        let pk = keygen_pk(params, vk, &circuit_b).unwrap();
 
         // if I pass circuit to gen_snark_shplonk, it fails...
-        gen_snark_shplonk(params, &pk, circuit, None::<&str>)
+        gen_snark_shplonk(params, &pk, circuit_b, None::<&str>)
     }
 
     #[test]
@@ -114,13 +116,12 @@ mod tests {
         let k = 4;
         let params_app = gen_srs(k);
 
-        let snarks = [(); 1].map(|_| gen_application_snark(&params_app));
+        let snarks = [(); 3].map(|_| gen_application_snark(&params_app));
 
         let ptau_path = format!("ptau/hermez-raw-{}", 22);
         let mut params_fs = File::open(ptau_path).expect("couldn't load params");
         let params = ParamsKZG::<Bn256>::read(&mut params_fs).expect("Failed to read params");
 
-        // Here I'm creating a new circuit I guess!
         let agg_circuit = AggregationCircuit::<SHPLONK>::new(&params, snarks);
 
         // Generating artifacts for the agg circuit
