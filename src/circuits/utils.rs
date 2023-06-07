@@ -1,70 +1,108 @@
+use crate::circuits::hash_v1::Hash1Circuit;
+use halo2_proofs::poly::commitment::{Params, ParamsProver};
+use halo2_proofs::poly::VerificationStrategy;
 use halo2_proofs::{
-    halo2curves::bn256::{Fr as Fp, Bn256, G1Affine}, 
-    poly::{
-        commitment::ParamsProver,
-        kzg::{
-        commitment::{
-            ParamsKZG,
-            KZGCommitmentScheme,
-        },
-        strategy::SingleStrategy,
-        multiopen::{ProverSHPLONK, VerifierSHPLONK}
-        },
-    },
+    dev::MockProver,
     plonk::{
-        create_proof, verify_proof, keygen_pk, keygen_vk, Circuit
+        create_proof, keygen_pk, keygen_vk, verify_proof, Circuit, Error, ProvingKey, VerifyingKey,
     },
-    transcript::{Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer, TranscriptWriterBuffer},
+    poly::kzg::{
+        commitment::{KZGCommitmentScheme, ParamsKZG},
+        multiopen::{ProverGWC, VerifierGWC},
+        strategy::AccumulatorStrategy,
+    },
+    transcript::{TranscriptReadBuffer, TranscriptWriterBuffer},
+    SerdeFormat,
 };
-use std::time::Instant;
+use halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fq, Fr as Fp, G1Affine},
+    poly::kzg::multiopen::{ProverSHPLONK, VerifierSHPLONK},
+    transcript::{Blake2bRead, Blake2bWrite, Challenge255},
+};
+use itertools::Itertools;
 use rand::rngs::OsRng;
+use snark_verifier::loader::evm::{self, deploy_and_call, encode_calldata, EvmLoader};
+use snark_verifier::{
+    pcs::kzg::{Gwc19, KzgAs, KzgDecidingKey},
+    system::halo2::{compile, transcript::evm::EvmTranscript, Config},
+    verifier::{self, SnarkVerifier},
+};
+use std::fs::File;
+use std::rc::Rc;
 
-pub fn full_prover <C: Circuit<Fp>> (
+type PlonkVerifier = verifier::plonk::PlonkVerifier<KzgAs<Bn256, Gwc19>>;
+
+pub fn gen_evm_verifier(
+    params: &ParamsKZG<Bn256>,
+    vk: &VerifyingKey<G1Affine>,
+    num_instance: Vec<usize>,
+) -> Vec<u8> {
+    let protocol = compile(
+        params,
+        vk,
+        Config::kzg().with_num_instance(num_instance.clone()),
+    );
+    let vk = (params.get_g()[0], params.g2(), params.s_g2()).into();
+
+    let loader = EvmLoader::new::<Fq, Fp>();
+    let protocol = protocol.loaded(&loader);
+    let mut transcript = EvmTranscript::<_, Rc<EvmLoader>, _, _>::new(&loader);
+
+    let instances = transcript.load_instances(num_instance);
+    let proof = PlonkVerifier::read_proof(&vk, &protocol, &instances, &mut transcript).unwrap();
+    PlonkVerifier::verify(&vk, &protocol, &instances, &proof).unwrap();
+
+    evm::compile_yul(&loader.yul_code())
+}
+
+pub fn gen_proof<C: Circuit<Fp>>(
+    params: &ParamsKZG<Bn256>,
+    pk: &ProvingKey<G1Affine>,
     circuit: C,
-    k: u32,
-    public_input: &[Fp]
-) {
+    instances: Vec<Vec<Fp>>,
+) -> Vec<u8> {
+    MockProver::run(params.k(), &circuit, instances.clone())
+        .unwrap()
+        .assert_satisfied();
 
-    let params = ParamsKZG::<Bn256>::setup(k, OsRng);
+    let instances = instances
+        .iter()
+        .map(|instances| instances.as_slice())
+        .collect_vec();
+    let proof = {
+        let mut transcript = TranscriptWriterBuffer::<_, G1Affine, _>::init(Vec::new());
+        create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, EvmTranscript<_, _, _, _>, _>(
+            params,
+            pk,
+            &[circuit],
+            &[instances.as_slice()],
+            OsRng,
+            &mut transcript,
+        )
+        .unwrap();
+        transcript.finalize()
+    };
 
-    let vk_time_start = Instant::now();
-    let vk = keygen_vk(&params, &circuit).unwrap();
-    let vk_time = vk_time_start.elapsed();
+    let accept = {
+        let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof.as_slice());
+        VerificationStrategy::<_, VerifierGWC<_>>::finalize(
+            verify_proof::<_, VerifierGWC<_>, _, EvmTranscript<_, _, _, _>, _>(
+                params.verifier_params(),
+                pk.get_vk(),
+                AccumulatorStrategy::new(params.verifier_params()),
+                &[instances.as_slice()],
+                &mut transcript,
+            )
+            .unwrap(),
+        )
+    };
+    assert!(accept);
 
-    let pk_time_start = Instant::now();
-    let pk = keygen_pk(&params, vk, &circuit).unwrap();
-    let pk_time = pk_time_start.elapsed();
+    proof
+}
 
-    let proof_time_start = Instant::now();
-    let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
-    create_proof::<
-        KZGCommitmentScheme<Bn256>,
-        ProverSHPLONK<'_, Bn256>,
-        Challenge255<G1Affine>,
-        _,
-        Blake2bWrite<Vec<u8>, G1Affine, Challenge255<G1Affine>>,
-        _,
-    >(&params, &pk, &[circuit], &[&[public_input]], OsRng, &mut transcript)
-    .expect("prover should not fail");
-    let proof = transcript.finalize();
-    let proof_time = proof_time_start.elapsed();
-
-    let verifier_params = params.verifier_params();
-    let verify_time_start = Instant::now();
-    let strategy = SingleStrategy::new(&params);
-    let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
-    assert!(verify_proof::<
-        KZGCommitmentScheme<Bn256>,
-        VerifierSHPLONK<'_, Bn256>,
-        Challenge255<G1Affine>,
-        Blake2bRead<&[u8], G1Affine, Challenge255<G1Affine>>,
-        SingleStrategy<'_, Bn256>,
-    >(verifier_params, pk.get_vk(), strategy, &[&[public_input]], &mut transcript)
-    .is_ok());
-    let verify_time = verify_time_start.elapsed();
-
-    println!("Time to generate vk {:?}", vk_time);
-    println!("Time to generate pk {:?}", pk_time);
-    println!("Prover Time {:?}", proof_time);
-    println!("Verifier Time {:?}", verify_time);
+pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fp>>, proof: Vec<u8>) {
+    let calldata = encode_calldata(&instances, &proof);
+    let gas_cost = deploy_and_call(deployment_code, calldata).unwrap();
+    dbg!(gas_cost);
 }

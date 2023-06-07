@@ -1,3 +1,3 @@
-pub mod hash_with_instance;
 pub mod hash;
+pub mod rate2_params;
 pub mod spec;

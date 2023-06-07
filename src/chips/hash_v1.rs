@@ -1,6 +1,5 @@
-use std::marker::PhantomData;
-
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, poly::Rotation};
+use halo2_proofs::halo2curves::bn256::Fr as Fp;
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
 pub struct Hash1Config {
@@ -10,21 +9,17 @@ pub struct Hash1Config {
 }
 
 #[derive(Debug, Clone)]
-pub struct Hash1Chip<F: FieldExt> {
+pub struct Hash1Chip {
     config: Hash1Config,
-    _marker: PhantomData<F>,
 }
 
-impl<F: FieldExt> Hash1Chip<F> {
+impl Hash1Chip {
     pub fn construct(config: Hash1Config) -> Self {
-        Self {
-            config,
-            _marker: PhantomData,
-        }
+        Self { config }
     }
 
     pub fn configure(
-        meta: &mut ConstraintSystem<F>,
+        meta: &mut ConstraintSystem<Fp>,
         advice: [Column<Advice>; 2],
         instance: Column<Instance>,
     ) -> Hash1Config {
@@ -46,7 +41,7 @@ impl<F: FieldExt> Hash1Chip<F> {
             let a = meta.query_advice(col_a, Rotation::cur());
             let b = meta.query_advice(col_b, Rotation::cur());
 
-            vec![s * (Expression::Constant(F::from(2)) * a - b)]
+            vec![s * (Expression::Constant(Fp::from(2)) * a - b)]
         });
 
         Hash1Config {
@@ -58,9 +53,9 @@ impl<F: FieldExt> Hash1Chip<F> {
 
     pub fn assign_advice_row(
         &self,
-        mut layouter: impl Layouter<F>,
-        a: Value<F>,
-    ) -> Result<AssignedCell<F, F>, Error> {
+        mut layouter: impl Layouter<Fp>,
+        a: Value<Fp>,
+    ) -> Result<AssignedCell<Fp, Fp>, Error> {
         layouter.assign_region(
             || "adivce row",
             |mut region| {
@@ -74,7 +69,7 @@ impl<F: FieldExt> Hash1Chip<F> {
                     || "b",
                     self.config.advice[1],
                     0,
-                    || a * Value::known(F::from(2)),
+                    || a * Value::known(Fp::from(2)),
                 )?;
 
                 Ok(b_cell)
@@ -85,8 +80,8 @@ impl<F: FieldExt> Hash1Chip<F> {
     // Enforce permutation check between b cell and instance column
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<F>,
-        b_cell: &AssignedCell<F, F>,
+        mut layouter: impl Layouter<Fp>,
+        b_cell: &AssignedCell<Fp, Fp>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(b_cell.cell(), self.config.instance, row)

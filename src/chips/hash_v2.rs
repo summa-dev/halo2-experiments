@@ -1,6 +1,5 @@
-use std::marker::PhantomData;
-
-use halo2_proofs::{arithmetic::FieldExt, circuit::*, plonk::*, poly::Rotation};
+use halo2_proofs::halo2curves::bn256::Fr as Fp;
+use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
 
 #[derive(Debug, Clone)]
 pub struct Hash2Config {
@@ -10,21 +9,17 @@ pub struct Hash2Config {
 }
 
 #[derive(Debug, Clone)]
-pub struct Hash2Chip<F: FieldExt> {
+pub struct Hash2Chip {
     config: Hash2Config,
-    _marker: PhantomData<F>,
 }
 
-impl<F: FieldExt> Hash2Chip<F> {
+impl Hash2Chip {
     pub fn construct(config: Hash2Config) -> Self {
-        Self {
-            config,
-            _marker: PhantomData,
-        }
+        Self { config }
     }
 
     pub fn configure(
-        meta: &mut ConstraintSystem<F>,
+        meta: &mut ConstraintSystem<Fp>,
         advice: [Column<Advice>; 3],
         instance: Column<Instance>,
     ) -> Hash2Config {
@@ -62,9 +57,9 @@ impl<F: FieldExt> Hash2Chip<F> {
 
     pub fn load_private(
         &self,
-        mut layouter: impl Layouter<F>,
-        input: Value<F>,
-    ) -> Result<AssignedCell<F, F>, Error> {
+        mut layouter: impl Layouter<Fp>,
+        input: Value<Fp>,
+    ) -> Result<AssignedCell<Fp, Fp>, Error> {
         layouter.assign_region(
             || "load private",
             |mut region| {
@@ -75,10 +70,10 @@ impl<F: FieldExt> Hash2Chip<F> {
 
     pub fn hash(
         &self,
-        mut layouter: impl Layouter<F>,
-        a_cell: AssignedCell<F, F>,
-        b_cell: AssignedCell<F, F>,
-    ) -> Result<AssignedCell<F, F>, Error> {
+        mut layouter: impl Layouter<Fp>,
+        a_cell: AssignedCell<Fp, Fp>,
+        b_cell: AssignedCell<Fp, Fp>,
+    ) -> Result<AssignedCell<Fp, Fp>, Error> {
         layouter.assign_region(
             || "hash row",
             |mut region| {
@@ -103,8 +98,8 @@ impl<F: FieldExt> Hash2Chip<F> {
     // Enforce permutation check between b cell and instance column
     pub fn expose_public(
         &self,
-        mut layouter: impl Layouter<F>,
-        c_cell: &AssignedCell<F, F>,
+        mut layouter: impl Layouter<Fp>,
+        c_cell: &AssignedCell<Fp, Fp>,
         row: usize,
     ) -> Result<(), Error> {
         layouter.constrain_instance(c_cell.cell(), self.config.instance, row)

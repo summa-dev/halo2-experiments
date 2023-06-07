@@ -1,6 +1,7 @@
+use crate::chips::poseidon::rate2_params;
 use halo2_gadgets::poseidon::primitives::*;
-use halo2_proofs::{arithmetic::FieldExt};
-use std::marker::PhantomData;
+use halo2_proofs::arithmetic::Field;
+use halo2_proofs::halo2curves::bn256::Fr as Fp;
 
 // P128Pow5T3 is the default Spec provided by the Halo2 Gadget => https://github.com/privacy-scaling-explorations/halo2/blob/main/halo2_gadgets/src/poseidon/primitives/p128pow5t3.rs#L13
 // This spec hardcodes the WIDTH and RATE parameters of the hash function to 3 and 2 respectively
@@ -9,24 +10,30 @@ use std::marker::PhantomData;
 // Because of that we need to define a new Spec
 // MySpec struct allows us to define the parameters of the Poseidon hash function WIDTH and RATE
 #[derive(Debug, Clone, Copy)]
-pub struct MySpec<F: FieldExt, const WIDTH: usize, const RATE: usize>{
-    _marker: PhantomData<F>
-}
+pub struct Spec2;
 
-impl<F: FieldExt, const WIDTH: usize, const RATE: usize> Spec<F, WIDTH, RATE> for MySpec<F, WIDTH, RATE> {
+impl Spec<Fp, 3, 2> for Spec2 {
     fn full_rounds() -> usize {
         8
     }
 
     fn partial_rounds() -> usize {
-        56
+        57
     }
 
-    fn sbox(val: F) -> F {
+    fn sbox(val: Fp) -> Fp {
         val.pow_vartime(&[5])
     }
 
     fn secure_mds() -> usize {
-        0
+        unimplemented!()
+    }
+
+    fn constants() -> (Vec<[Fp; 3]>, Mds<Fp, 3>, Mds<Fp, 3>) {
+        (
+            rate2_params::ROUND_CONSTANTS[..].to_vec(),
+            rate2_params::MDS,
+            rate2_params::MDS_INV,
+        )
     }
 }
